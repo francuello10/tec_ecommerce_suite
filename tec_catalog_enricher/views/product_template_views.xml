@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="product_template_form_view_enricher" model="ir.ui.view">
+        <field name="name">product.template.form.inherit.enricher</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_only_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="before">
+                <header>
+                    <button name="action_fetch_technical_data" string="📥 Obtener Ficha Técnica" type="object" class="btn-primary" 
+                        invisible="enrichment_state in ['full_enriched', 'tech_done'] and not force_enrichment"/>
+                    <button name="action_generate_marketing_content" string="✨ Generar Marketing AI" type="object" class="btn-secondary"
+                         invisible="enrichment_state == 'draft'"/>
+                </header>
+            </xpath>
+            <xpath expr="//div[@name='button_box']" position="inside">
+                 <button class="oe_stat_button" type="object" name="action_open_website" icon="fa-magic" invisible="enrichment_state == 'draft'">
+                    <field string="Enriquecido" name="enrichment_source" widget="statinfo"/>
+                </button>
+            </xpath>
+            <xpath expr="//page[@name='sales']" position="after">
+                <page string="Inteligencia de Catálogo" name="catalog_intelligence">
+                    <group>
+                        <group string="Estado de Enriquecimiento">
+                            <field name="enrichment_state" widget="statusbar" options="{'clickable': '1'}"/>
+                            <field name="enrichment_source" string="Fuente de Datos"/>
+                            <field name="force_enrichment" string="Forzar Re-enriquecimiento"/>
+                        </group>
+                        <group string="Identificadores Externos">
+                            <field name="original_part_number" string="Número de Parte Origen" readonly="1"/>
+                            <field name="external_product_url" string="URL Ficha Oficial" widget="url"/>
+                            <field name="support_search_url" string="URL Soporte Marca" widget="url"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

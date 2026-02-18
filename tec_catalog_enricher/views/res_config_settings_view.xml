@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_enricher" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.enricher</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="tec_dropshipping_core.res_config_settings_view_form_core"/>
+        <field name="arch" type="xml">
+            <xpath expr="//block[@id='tec_ecommerce_suite_settings_core']" position="after">
+                <block title="Inteligencia de Catálogo (Enrichment)" id="tec_catalog_enricher_settings">
+                    <setting id="enricher_hard_data" string="Fuentes de Datos (Hard Data)" help="Credenciales para obtener especificaciones e imágenes.">
+                        <div class="row">
+                            <div class="col-12 col-lg-6">
+                                <setting string="Icecat" help="Especificaciones técnicas oficiales.">
+                                    <field name="use_icecat"/>
+                                    <div class="content-group" invisible="not use_icecat">
+                                        <div class="row mt16">
+                                            <label for="icecat_username" string="Usuario" class="col-lg-4 o_light_label"/>
+                                            <field name="icecat_username" class="oe_inline"/>
+                                        </div>
+                                        <div class="row">
+                                            <label for="icecat_password" string="Password" class="col-lg-4 o_light_label"/>
+                                            <field name="icecat_password" password="True" class="oe_inline"/>
+                                        </div>
+                                    </div>
+                                </setting>
+                            </div>
+                            <div class="col-12 col-lg-6">
+                                <setting string="Google Fallback" help="Búsqueda de imágenes y PDFs.">
+                                    <field name="use_google"/>
+                                    <div class="content-group" invisible="not use_google">
+                                        <div class="row mt16">
+                                            <label for="google_cse_key" string="API Key" class="col-lg-4 o_light_label"/>
+                                            <field name="google_cse_key" password="True" class="oe_inline"/>
+                                        </div>
+                                        <div class="row">
+                                            <label for="google_cse_cx" string="CX ID" class="col-lg-4 o_light_label"/>
+                                            <field name="google_cse_cx" class="oe_inline"/>
+                                        </div>
+                                    </div>
+                                </setting>
+                            </div>
+                        </div>
+                    </setting>
+
+                    <setting id="enricher_soft_data" string="Inteligencia Artificial &amp; Social" help="Generación de contenido y social proof.">
+                        <div class="row">
+                            <div class="col-12 col-lg-6">
+                                <setting string="Google Gemini AI" help="Cerebro para redacción SEO.">
+                                    <field name="use_gemini"/>
+                                    <div class="content-group" invisible="not use_gemini">
+                                        <div class="row mt16">
+                                            <label for="gemini_api_key" string="API Key" class="col-lg-4 o_light_label"/>
+                                            <field name="gemini_api_key" password="True" class="oe_inline"/>
+                                        </div>
+                                        <div class="row">
+                                            <label for="gemini_model" string="Modelo" class="col-lg-4 o_light_label"/>
+                                            <field name="gemini_model" class="oe_inline" placeholder="gemini-1.5-flash"/>
+                                        </div>
+                                    </div>
+                                </setting>
+                            </div>
+                            <div class="col-12 col-lg-6">
+                                <setting string="YouTube Social Proof" help="Búsqueda de video-reviews.">
+                                    <field name="use_youtube"/>
+                                    <div class="content-group" invisible="not use_youtube">
+                                        <div class="row mt16">
+                                            <label for="youtube_api_key" string="API Key" class="col-lg-4 o_light_label"/>
+                                            <field name="youtube_api_key" password="True" class="oe_inline"/>
+                                        </div>
+                                    </div>
+                                </setting>
+                            </div>
+                        </div>
+                    </setting>
+
+                    <setting id="enricher_governance" string="Gobernanza" help="Límites y control.">
+                        <div class="content-group">
+                            <div class="row mt16">
+                                <label for="max_images_limit" class="col-lg-4 o_light_label"/>
+                                <field name="max_images_limit" class="oe_inline"/>
+                            </div>
+                        </div>
+                    </setting>
+
+                    <setting id="meli_sync_settings" string="Sincronización MercadoLibre" help="Mapeo inteligente para el Marketplace.">
+                        <div class="content-group">
+                            <div class="row mt16">
+                                <label for="tec_meli_api_url" string="URL API MELI" class="col-lg-4 o_light_label"/>
+                                <field name="tec_meli_api_url" class="oe_inline"/>
+                            </div>
+                            <div class="row">
+                                <label for="tec_meli_enable_ai_mapping" string="Habilitar Mapeo IA" class="col-lg-4 o_light_label"/>
+                                <field name="tec_meli_enable_ai_mapping"/>
+                            </div>
+                        </div>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+</odoo>

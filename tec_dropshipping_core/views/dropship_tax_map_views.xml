@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_dropship_tax_map_tree" model="ir.ui.view">
+        <field name="name">dropship.tax.map.list</field>
+        <field name="model">dropship.tax.map</field>
+        <field name="arch" type="xml">
+            <list string="Tax Mappings" editable="bottom">
+                <field name="backend_id" column_invisible="1"/>
+                <field name="csv_value"/>
+                <field name="tax_id" string="Imp. Compra"/>
+                <field name="sale_tax_id" string="Imp. Venta"/>
+            </list>
+        </field>
+    </record>
+</odoo>

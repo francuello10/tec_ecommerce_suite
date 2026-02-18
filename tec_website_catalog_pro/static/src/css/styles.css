@@ -1,0 +1,61 @@
+/* Breadcrumbs Premium Styles */
+.tec-breadcrumb .breadcrumb {
+    background: transparent;
+    padding: 0;
+    margin-bottom: 2rem;
+}
+
+.tec-breadcrumb .breadcrumb-item {
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.tec-breadcrumb .breadcrumb-item + .breadcrumb-item::before {
+    content: "›";
+    font-size: 1rem;
+    line-height: 1;
+    vertical-align: middle;
+    color: #ccc;
+}
+
+.tec-breadcrumb .breadcrumb-item a {
+    color: #888;
+    transition: color 0.2s ease;
+}
+
+.tec-breadcrumb .breadcrumb-item a:hover {
+    color: var(--primary);
+}
+
+.tec-breadcrumb .breadcrumb-item.active {
+    color: #333;
+    font-weight: 700;
+}
+
+/* Tabs and Shadow Enhancements */
+.tec-product-tabs {
+    border-top: 1px solid #eee;
+}
+
+.tec-product-tabs .nav-tabs .nav-link {
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: #999;
+}
+
+.tec-product-tabs .nav-tabs .nav-link.active {
+    border-bottom: 3px solid var(--primary);
+    color: var(--primary);
+    background: transparent;
+}
+
+#productTabContent {
+    border: 1px solid #eee !important;
+    border-top: none !important;
+}
+
+.tec-product-highlights {
+    border-left: 3px solid var(--primary);
+    padding-left: 1rem;
+}

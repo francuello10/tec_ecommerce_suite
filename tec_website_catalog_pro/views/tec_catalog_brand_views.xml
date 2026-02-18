@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Brand views (tree, form, action) are defined in tec_dropshipping_core -->
+    <!-- Here we only add the menu entry under the Website/eCommerce menu -->
+
+    <menuitem id="menu_tec_catalog_brand"
+              name="Marcas"
+              parent="website_sale.menu_catalog"
+              action="tec_dropshipping_core.tec_catalog_brand_action"
+              sequence="40"/>
+</odoo>

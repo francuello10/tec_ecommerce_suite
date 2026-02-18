@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="product_public_category_form_view_inherit_meli" model="ir.ui.view">
+        <field name="name">product.public.category.form.inherit.meli</field>
+        <field name="model">product.public.category</field>
+        <field name="inherit_id" ref="website_sale.product_public_category_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='parent_id']" position="after">
+                <field name="meli_id" readonly="1" invisible="not is_meli_category"/>
+                <field name="is_meli_category" invisible="1"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="action_fetch_meli_categories" model="ir.actions.server">
+        <field name="name">Fetch MELI Categories</field>
+        <field name="model_id" ref="website_sale.model_product_public_category"/>
+        <field name="state">code</field>
+        <field name="code">
+            action = model.action_fetch_meli_categories()
+        </field>
+    </record>
+
+    <menuitem id="menu_fetch_meli_categories"
+              name="Fetch MELI Categories"
+              parent="website_sale.menu_catalog"
+              action="action_fetch_meli_categories"
+              sequence="91"/>
+</odoo>

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="product_template_view_form_inherit_catalog_pro" model="ir.ui.view">
+        <field name="name">product.template.form.inherit.catalog.pro</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_only_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='name']" position="before">
+                <field name="product_brand_id" placeholder="Marca" options="{'no_create_edit': True}"/>
+            </xpath>
+            <xpath expr="//notebook" position="inside">
+                <page string="Activos E-commerce" name="ecommerce_assets">
+                    <group name="marketing_media" string="Marketing y Multimedia">
+                        <group name="media_assets" string="Contenido Enriquecido">
+                            <field name="video_url" placeholder="https://www.youtube.com/watch?v=..."/>
+                            <field name="condition" widget="radio" options="{'horizontal': true}"/>
+                        </group>
+                        <group name="highlights_group" string="Puntos Destacados">
+                            <field name="highlights" nolabel="1" placeholder="Características clave en viñetas..."/>
+                        </group>
+                    </group>
+                    <group name="documentation_group" string="Documentación Estándar (PDF, Manuales)">
+                        <field name="product_document_ids" nolabel="1">
+                            <list editable="bottom">
+                                <field name="name"/>
+                                <!-- Removed mimetype -->
+                                <field name="attached_on_sale" optional="show"/>
+                                <field name="shown_on_product_page" widget="boolean_toggle"/>
+                            </list>
+                        </field>
+                    </group>
+                    <group string="Etiquetas Smart (Solo Lectura)" groups="base.group_no_one">
+                        <field name="is_new_arrival" readonly="1"/>
+                        <field name="is_low_stock" readonly="1"/>
+                        <field name="discount_percent" readonly="1"/>
+                    </group>
+                </page>
+                <page string="Reglas de Stock Shield" name="website_safety_stock">
+                    <group string="Reserva de Seguridad Web (APB)">
+                        <group>
+                            <field name="safety_stock_type_desc" widget="radio" options="{'horizontal': true}"/>
+                            <field name="safety_stock_qty" string="Cantidad Manual (-1: Heredar)"/>
+                        </group>
+                        <group string="Resultado Final">
+                            <field name="computed_safety_stock" decoration-bf="1" decoration-danger="computed_safety_stock > 0"/>
+                            <div class="text-muted" colspan="2">
+                                Esta cantidad se resta automáticamente de lo disponible en la web.
+                            </div>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

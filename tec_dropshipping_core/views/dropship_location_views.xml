@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_dropship_location_form" model="ir.ui.view">
+        <field name="name">dropship.location.form</field>
+        <field name="model">dropship.location</field>
+        <field name="arch" type="xml">
+            <form string="Dropship Location">
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="backend_id"/>
+                        <field name="partner_id"/>
+                        <field name="sequence"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_dropship_location_tree" model="ir.ui.view">
+        <field name="name">dropship.location.list</field>
+        <field name="model">dropship.location</field>
+        <field name="arch" type="xml">
+            <list string="Dropship Locations">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="backend_id"/>
+                <field name="partner_id"/>
+            </list>
+        </field>
+    </record>
+</odoo>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_dropship_root" name="Dropshipping" web_icon="tec_dropshipping_core,static/description/icon.png" sequence="20"/>
+
+    <menuitem id="menu_dropship_config" name="Configuration" parent="menu_dropship_root" sequence="100"/>
+
+    <menuitem id="menu_dropship_backend" 
+              name="Backends (Providers)" 
+              parent="menu_dropship_config" 
+              action="action_dropship_backend" 
+              sequence="10"/>
+
+    <menuitem id="menu_dropship_brands"
+              name="Marcas"
+              parent="menu_dropship_config"
+              action="tec_catalog_brand_action"
+              sequence="20"/>
+
+    <menuitem id="menu_tec_suite_config"
+              name="Tec Suite Settings"
+              parent="menu_dropship_config"
+              action="action_tec_ecommerce_suite_config"
+              sequence="100"/>
+</odoo>

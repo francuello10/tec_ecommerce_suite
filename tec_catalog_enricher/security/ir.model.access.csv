@@ -1,0 +1,2 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_tec_category_mapping,tec.category.mapping,model_tec_catalog_category_mapping,tec_dropshipping_core.group_tec_ecommerce_suite_user,1,1,1,1

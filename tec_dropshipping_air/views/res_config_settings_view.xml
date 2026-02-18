@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_air" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.tec.air</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="tec_dropshipping_core.res_config_settings_view_form_core"/>
+        <field name="arch" type="xml">
+            <xpath expr="//block[@id='tec_ecommerce_suite_settings_core']" position="after">
+                <block title="Sincronización de Proveedores (Logistics)" id="tec_ecommerce_suite_settings_air">
+                    <setting string="Air Computers" help="Control de automatización para Air Computers.">
+                        <div class="content-group">
+                            <div class="row mt16">
+                                <label for="air_auto_create_brands" class="col-lg-4 o_light_label"/>
+                                <field name="air_auto_create_brands"/>
+                            </div>
+                            <div class="row">
+                                <label for="air_auto_download_images" class="col-lg-4 o_light_label"/>
+                                <field name="air_auto_download_images"/>
+                            </div>
+                            <div class="row">
+                                <label for="air_only_sync_existing_products" class="col-lg-4 o_light_label"/>
+                                <field name="air_only_sync_existing_products"/>
+                            </div>
+                        </div>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+</odoo>

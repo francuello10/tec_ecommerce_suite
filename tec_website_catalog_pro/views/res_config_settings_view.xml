@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_catalog_pro" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.catalog.pro</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="tec_dropshipping_core.res_config_settings_view_form_core"/>
+        <field name="arch" type="xml">
+            <xpath expr="//block[@id='tec_ecommerce_suite_settings_core']" position="after">
+                <block title="Ventas &amp; UX Digital (Catalog Pro)" id="tec_catalog_pro_settings">
+                    <setting string="Experiencia Visual" help="Control de elementos visuales en el catálogo.">
+                        <div class="content-group">
+                            <div class="row mt16">
+                                <label for="show_smart_labels" class="col-lg-4 o_light_label"/>
+                                <field name="show_smart_labels"/>
+                            </div>
+                            <div class="row">
+                                <label for="catalog_pro_show_usd_exchange" class="col-lg-4 o_light_label"/>
+                                <field name="catalog_pro_show_usd_exchange"/>
+                            </div>
+                            <div class="row">
+                                <label for="catalog_pro_show_highlights" class="col-lg-4 o_light_label"/>
+                                <field name="catalog_pro_show_highlights"/>
+                            </div>
+                            <div class="row">
+                                <label for="catalog_pro_show_videos" class="col-lg-4 o_light_label"/>
+                                <field name="catalog_pro_show_videos"/>
+                            </div>
+                            <div class="row">
+                                <label for="catalog_pro_show_air_description" class="col-lg-4 o_light_label"/>
+                                <field name="catalog_pro_show_air_description"/>
+                            </div>
+                            <div class="row">
+                                <label for="catalog_enricher_show_spec_links" class="col-lg-4 o_light_label"/>
+                                <field name="catalog_enricher_show_spec_links"/>
+                            </div>
+                            <div class="row">
+                                <label for="catalog_enricher_show_support_buttons" class="col-lg-4 o_light_label"/>
+                                <field name="catalog_enricher_show_support_buttons"/>
+                            </div>
+                            <div class="row">
+                                <label for="stock_display_mode" class="col-lg-4 o_light_label"/>
+                                <field name="stock_display_mode"/>
+                            </div>
+                        </div>
+                    </setting>
+                    <setting string="Protección de Stock (Shield)" help="Control global de reservas de seguridad.">
+                         <div class="content-group">
+                            <div class="row mt16">
+                                <label for="safety_stock_active" class="col-lg-4 o_light_label"/>
+                                <field name="safety_stock_active"/>
+                            </div>
+                            <div class="row" invisible="not safety_stock_active">
+                                <label for="safety_stock_qty" string="Stock de Seguridad Global" class="col-lg-4 o_light_label"/>
+                                <field name="safety_stock_qty"/>
+                            </div>
+                        </div>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+</odoo>

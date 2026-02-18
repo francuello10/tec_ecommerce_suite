@@ -1,0 +1,8 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_dropship_backend,dropship.backend,model_dropship_backend,group_tec_ecommerce_suite_user,1,1,1,1
+access_dropship_location,dropship.location,model_dropship_location,group_tec_ecommerce_suite_user,1,1,1,1
+access_dropship_tax_map,dropship.tax.map,model_dropship_tax_map,group_tec_ecommerce_suite_user,1,1,1,1
+access_tec_catalog_brand,tec.catalog.brand,model_tec_catalog_brand,group_tec_ecommerce_suite_user,1,1,1,1
+access_tec_product_image_user,tec.product.image,model_tec_product_image,base.group_user,1,0,0,0
+access_tec_product_image_suite,tec.product.image,model_tec_product_image,group_tec_ecommerce_suite_user,1,1,1,1
+access_tec_dropshipping_log,tec.dropshipping.log,model_tec_dropshipping_log,group_tec_ecommerce_suite_user,1,1,1,0

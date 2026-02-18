@@ -1,0 +1,291 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Template for Badges (Reusable) -->
+    <template id="product_smart_badges" name="Product Smart Badges">
+        <t t-set="show_labels" t-value="request.env['ir.config_parameter'].sudo().get_param('tec_website_catalog_pro.show_smart_labels', 'True') == 'True'"/>
+        <div t-if="show_labels" class="tec-badges d-inline-flex flex-wrap gap-1 align-items-center">
+            <t t-if="product.is_new_arrival">
+                <span class="badge rounded-pill bg-primary text-uppercase" style="font-size: 0.65rem; padding: 0.4em 0.8em;">Nuevo</span>
+            </t>
+            <t t-if="product.is_low_stock">
+                <span class="badge rounded-pill bg-warning text-dark text-uppercase" style="font-size: 0.65rem; padding: 0.4em 0.8em;">Últimas Unidades</span>
+            </t>
+            <t t-set="combination_info" t-value="product._get_combination_info(combination, product_id, add_qty or 1, pricelist)"/>
+            <t t-if="combination_info.get('has_discounted_price')">
+                <t t-set="diff" t-value="combination_info['list_price'] - combination_info['price']"/>
+                <t t-set="percent" t-value="round((diff / combination_info['list_price']) * 100) if combination_info.get('list_price') else 0"/>
+                <t t-if="percent &gt; 0">
+                    <span class="badge rounded-pill bg-danger text-uppercase" style="font-size: 0.65rem; padding: 0.4em 0.8em;">
+                        <t t-out="percent"/>% OFF
+                    </span>
+                </t>
+            </t>
+        </div>
+    </template>
+
+    <!-- Inherit Product Price to show ARS Net + Tax logic -->
+    <template id="product_price_inherit_catalog_pro" inherit_id="website_sale.product_price">
+        <xpath expr="//div[@name='product_price']" position="replace">
+            <div t-if="product" class="product_price mt-2 mb-4 p-3 bg-light rounded border shadow-sm" itemprop="offers" itemscope="itemscope" itemtype="http://schema.org/Offer">
+                <t t-set="combination_info" t-value="product._get_combination_info(combination, product_id, add_qty or 1, pricelist)"/>
+                
+                <!-- 1. Precio Neto (Main) -->
+                <div class="d-flex align-items-baseline gap-2">
+                    <span class="h2 fw-bold text-dark mb-0">
+                        <t t-out="combination_info['price']" t-options="{'widget': 'monetary', 'display_currency': website.currency_id}"/>
+                    </span>
+                    <span class="text-muted fw-bold">+ IVA</span>
+                </div>
+
+                <!-- 2. Precio Final (Informativo pero claro) -->
+                <div class="tec-final-price mt-1 border-top pt-2">
+                    <t t-set="tax_included_price" t-value="combination_info['total_included_price'] if 'total_included_price' in combination_info else combination_info['price'] * 1.21"/>
+                    <span class="text-primary fw-bold" style="font-size: 1.1rem;">
+                        <t t-out="tax_included_price" t-options="{'widget': 'monetary', 'display_currency': website.currency_id}"/>
+                    </span>
+                    <span class="small text-muted ms-1">Final IVA Incluido</span>
+                </div>
+
+                <!-- 3. Stock Display (Custom) -->
+                <div class="tec-stock-display mt-2">
+                    <t t-if="product.x_website_stock > 0">
+                        <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-2">
+                            <i class="fa fa-check-circle me-1"/> 
+                            <t t-out="int(product.x_website_stock)"/> Unidades Disponibles
+                        </span>
+                    </t>
+                    <t t-else="">
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-3 py-2">
+                            <i class="fa fa-times-circle me-1"/> Sin Stock
+                        </span>
+                    </t>
+                </div>
+
+                <!-- 4. Precio en USD (Referencia para Argentina) -->
+                <t t-set="show_usd" t-value="request.env['ir.config_parameter'].sudo().get_param('tec_website_catalog_pro.show_usd_exchange', 'True') == 'True'"/>
+                <div t-if="show_usd and product.x_usd_price" class="mt-2 small text-muted italic">
+                    <i class="fa fa-info-circle me-1"/> Ref. u$s <t t-out="product.x_usd_price" t-options="{'widget': 'float', 'precision': 2}"/>
+                </div>
+
+                <meta t-if="combination_info['has_discounted_price']" itemprop="price" t-att-content="combination_info['price']"/>
+                <meta t-if="not combination_info['has_discounted_price']" itemprop="price" t-att-content="combination_info['price']"/>
+                <meta itemprop="priceCurrency" t-att-content="website.currency_id.name"/>
+            </div>
+        </xpath>
+    </template>
+
+    <template id="product_title_inherit_catalog_pro" inherit_id="website_sale.product_title">
+        <xpath expr="//h1[@t-field='product.name']" position="after">
+            <div class="d-flex flex-column gap-2 mb-3 mt-2">
+                <div class="d-flex align-items-center gap-2">
+                    <t t-call="tec_website_catalog_pro.product_smart_badges"/>
+                    <t t-if="product.condition and product.condition != 'new'">
+                        <span class="badge border border-secondary text-secondary text-uppercase" style="font-size: 0.65rem;">
+                            <t t-out="dict(product._fields['condition'].selection).get(product.condition)"/>
+                        </span>
+                    </t>
+                    <t t-if="product.product_brand_id">
+                        <div class="ms-auto tec-brand-logo">
+                            <a t-if="product.product_brand_id.website_url" t-att-href="product.product_brand_id.website_url" target="_blank" title="Ver marca">
+                                <span t-field="product.product_brand_id.logo" t-options="{'widget': 'image', 'preview_image': 'logo', 'class': 'img-fluid', 'style': 'max-height: 50px;'}"/>
+                            </a>
+                            <span t-else="" t-field="product.product_brand_id.logo" t-options="{'widget': 'image', 'preview_image': 'logo', 'class': 'img-fluid', 'style': 'max-height: 50px;'}"/>
+                        </div>
+                    </t>
+                </div>
+                <!-- Highlights / Bullet points -->
+                <t t-set="show_highlights" t-value="request.env['ir.config_parameter'].sudo().get_param('tec_website_catalog_pro.show_highlights', 'True') == 'True'"/>
+                <t t-if="show_highlights and product.highlights">
+                    <div class="tec-product-highlights mt-2 small text-muted">
+                        <t t-out="product.highlights"/>
+                    </div>
+                </t>
+            </div>
+        </xpath>
+    </template>
+
+    <!-- Header Rate Snippet (Informative) -->
+    <template id="header_dolar_bna" inherit_id="website.layout" name="Header Dolar BNA">
+        <xpath expr="//header" position="before">
+            <t t-set="show_usd" t-value="request.env['ir.config_parameter'].sudo().get_param('tec_website_catalog_pro.show_usd_exchange', 'True') == 'True'"/>
+            <div t-if="website.id and show_usd" class="tec-header-bar bg-light border-bottom py-1 small text-muted px-3 d-flex justify-content-between align-items-center">
+                <div class="tec-dolar-rate">
+                    <t t-set="usd_currency" t-value="request.env['res.currency'].search([('name', '=', 'USD')], limit=1)"/>
+                    <t t-if="usd_currency and usd_currency.rate">
+                        <t t-set="last_rate" t-value="round(1.0 / usd_currency.rate, 2)"/>
+                        <span class="fw-bold text-primary">Dólar BNA venta: $<t t-out="last_rate"/></span>
+                    </t>
+                </div>
+                <div class="tec-support-links d-none d-md-block">
+                    <span class="me-3"><i class="fa fa-truck me-1"/> Envíos a todo el país</span>
+                </div>
+            </div>
+        </xpath>
+    </template>
+
+    <!-- Breadcrumbs Enhancement -->
+    <template id="product_breadcrumb_inherit_catalog_pro" inherit_id="website_sale.product" priority="20">
+        <xpath expr="//div[hasclass('row')][1]" position="before">
+            <nav t-if="product" aria-label="breadcrumb" class="tec-breadcrumb mb-4">
+                <ol class="breadcrumb bg-transparent p-0 small text-uppercase letter-spacing-1">
+                    <li class="breadcrumb-item"><a href="/shop" class="text-decoration-none text-muted">Tienda</a></li>
+                    <li t-if="product.public_categ_ids" class="breadcrumb-item">
+                        <t t-set="categ" t-value="product.public_categ_ids[0]"/>
+                        <a t-att-href="keep('/shop/category/%s' % slug(categ), category=0)" class="text-decoration-none text-muted">
+                            <t t-out="categ.name"/>
+                        </a>
+                    </li>
+                    <li t-if="product.product_brand_id" class="breadcrumb-item">
+                        <span class="text-primary fw-bold"><t t-out="product.product_brand_id.name"/></span>
+                    </li>
+                    <li class="breadcrumb-item active text-dark fw-bold" aria-current="page">
+                        <t t-out="product.name"/>
+                    </li>
+                </ol>
+            </nav>
+        </xpath>
+
+        <!-- Spacing and cleanup -->
+        <xpath expr="//div[@id='product_full_description']" position="attributes">
+            <attribute name="class" add="d-none" separator=" "/>
+        </xpath>
+
+        <!-- Insert Tabs after product detail -->
+        <xpath expr="//section[@id='product_detail']" position="after">
+            <div class="container tec-product-tabs mt-5 mb-5 py-4 border-top">
+                <div class="row">
+                    <div class="col-12">
+                        <ul class="nav nav-tabs border-bottom-0" id="productTab" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active fw-bold text-uppercase px-4 p-3" id="description-tab" data-bs-toggle="tab" data-bs-target="#description-pane" type="button" role="tab" aria-controls="description-pane" aria-selected="true">Descripción</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link fw-bold text-uppercase px-4 p-3" id="specs-tab" data-bs-toggle="tab" data-bs-target="#specs-pane" type="button" role="tab" aria-controls="specs-pane" aria-selected="false">Ficha Técnica</button>
+                            </li>
+                            <t t-set="show_videos" t-value="request.env['ir.config_parameter'].sudo().get_param('tec_website_catalog_pro.show_videos', 'True') == 'True'"/>
+                            <t t-if="show_videos and product.video_url">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link fw-bold text-uppercase px-4 p-3" id="video-tab" data-bs-toggle="tab" data-bs-target="#video-pane" type="button" role="tab" aria-controls="video-pane" aria-selected="false">Video</button>
+                                </li>
+                            </t>
+                            <t t-if="any(d.shown_on_product_page for d in product.product_document_ids)">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link fw-bold text-uppercase px-4 p-3" id="downloads-tab" data-bs-toggle="tab" data-bs-target="#downloads-pane" type="button" role="tab" aria-controls="downloads-pane" aria-selected="false">Descargas</button>
+                                </li>
+                            </t>
+                        </ul>
+                        <div class="tab-content border p-4 bg-white shadow-sm rounded-bottom" id="productTabContent">
+                            <!-- Tab 1: Description -->
+                            <div class="tab-pane fade show active" id="description-pane" role="tabpanel" aria-labelledby="description-tab" tabindex="0">
+                                <div t-if="product.website_description" t-field="product.website_description" class="oe_structure oe_empty"/>
+                                <t t-elif="product.air_description_raw">
+                                    <t t-set="show_air_desc" t-value="request.env['ir.config_parameter'].sudo().get_param('tec_website_catalog_pro.show_air_description', 'True') == 'True'"/>
+                                    <t t-if="show_air_desc">
+                                        <div class="tec-air-description bg-light p-3 border rounded">
+                                            <h6 class="text-primary mb-3 fw-bold"><i class="fa fa-info-circle me-2"/> Especificaciones del Fabricante</h6>
+                                            <div class="text-muted small" style="white-space: pre-line; line-height: 1.6;">
+                                                <t t-out="product.air_description_raw"/>
+                                            </div>
+                                        </div>
+                                    </t>
+                                    <t t-else="">
+                                         <p class="text-muted italic">No hay descripción detallada disponible.</p>
+                                    </t>
+                                </t>
+                                <t t-else="">
+                                    <p class="text-muted italic">No hay descripción detallada disponible.</p>
+                                </t>
+                            </div>
+                            <!-- Tab 2: Specifications -->
+                            <div class="tab-pane fade" id="specs-pane" role="tabpanel" aria-labelledby="specs-tab" tabindex="0">
+                                <h4 class="mb-4">Especificaciones Técnicas</h4>
+                                <table class="table table-striped table-hover table-bordered">
+                                    <tbody>
+                                        <t t-foreach="product.attribute_line_ids" t-as="line">
+                                            <tr>
+                                                <td class="fw-bold bg-light" style="width: 30%;"><t t-out="line.attribute_id.name"/></td>
+                                                <td>
+                                                    <t t-foreach="line.value_ids" t-as="value">
+                                                        <span t-out="value.name"/><t t-if="not value_last">, </t>
+                                                    </t>
+                                                </td>
+                                            </tr>
+                                        </t>
+                                    </tbody>
+                                </table>
+                                <t t-if="not product.attribute_line_ids">
+                                    <p class="text-muted italic">No se han definido especificaciones técnicas para este producto.</p>
+                                </t>
+                                <div id="official_specs_link" class="mt-3">
+                                    <t t-set="show_specs" t-value="request.env['ir.config_parameter'].sudo().get_param('tec_catalog_enricher_website.show_spec_links', 'True') == 'True'"/>
+                                    <t t-if="show_specs and product.external_product_url">
+                                        <a t-att-href="product.external_product_url" target="_blank" class="btn btn-outline-primary btn-sm mt-2">
+                                            <i class="fa fa-file-pdf-o"/> Ver Ficha Oficial de Fabricante
+                                        </a>
+                                    </t>
+                                </div>
+                                <div id="official_support_link" class="mt-1">
+                                    <t t-set="show_support" t-value="request.env['ir.config_parameter'].sudo().get_param('tec_catalog_enricher_website.show_support_buttons', 'True') == 'True'"/>
+                                    <t t-if="show_support and product.support_search_url">
+                                        <a t-att-href="product.support_search_url" target="_blank" class="btn btn-outline-secondary btn-sm mt-2">
+                                            <i class="fa fa-support"/> Soporte Oficial <t t-out="product.product_brand_id.name"/>
+                                        </a>
+                                    </t>
+                                </div>
+                            </div>
+                            <!-- Tab: Video -->
+                            <t t-set="show_videos" t-value="request.env['ir.config_parameter'].sudo().get_param('tec_website_catalog_pro.show_videos', 'True') == 'True'"/>
+                            <t t-if="show_videos and product.video_url">
+                                <div class="tab-pane fade" id="video-pane" role="tabpanel" aria-labelledby="video-tab" tabindex="0">
+                                    <h4 class="mb-4">Video del Producto</h4>
+                                    <div class="ratio ratio-16x9">
+                                        <t t-set="video_embed_url" t-value="product.video_url.replace('watch?v=', 'embed/').replace('vimeo.com/', 'player.vimeo.com/video/')"/>
+                                        <iframe t-att-src="video_embed_url" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen="True"></iframe>
+                                    </div>
+                                </div>
+                            </t>
+                            <!-- Tab 3: Downloads (Standard v19) -->
+                            <t t-if="any(d.shown_on_product_page for d in product.product_document_ids)">
+                                <div class="tab-pane fade" id="downloads-pane" role="tabpanel" aria-labelledby="downloads-tab" tabindex="0">
+                                    <h4 class="mb-4">Documentación y Descargas</h4>
+                                    <div class="list-group list-group-flush border rounded">
+                                        <t t-foreach="product.product_document_ids" t-as="doc">
+                                            <t t-if="doc.shown_on_product_page">
+                                                <div class="list-group-item d-flex align-items-center justify-content-between py-3">
+                                                    <div>
+                                                        <i class="fa fa-file-pdf-o text-danger fa-2x me-3" style="vertical-align: middle; padding-top: 5px;"/>
+                                                        <span class="h6 mb-0" t-out="doc.name"/>
+                                                    </div>
+                                                    <a t-attf-href="/web/content/#{doc.ir_attachment_id.id or ''}?download=true" class="btn btn-outline-primary btn-sm rounded-pill px-4 shadow-sm">
+                                                        <i class="fa fa-download me-1"/> Descargar
+                                                    </a>
+                                                </div>
+                                            </t>
+                                        </t>
+                                    </div>
+                                </div>
+                            </t>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </xpath>
+    </template>
+
+    <!-- Inherit Shop Grid to show badges and price clarity -->
+    <template id="products_item_inherit_catalog_pro" inherit_id="website_sale.products_item">
+        <xpath expr="//*[contains(@class, 'oe_product_image')]" position="inside">
+             <div class="tec-badge-container" style="position: absolute; top: 10px; left: 10px; z-index: 10;">
+                <t t-call="tec_website_catalog_pro.product_smart_badges"/>
+             </div>
+        </xpath>
+        <!-- Adjust Price in Grid -->
+        <xpath expr="//div[hasclass('o_wsale_product_sub')]//div[hasclass('product_price')]" position="inside">
+            <span class="text-muted small fw-bold"> + IVA</span>
+            <t t-set="show_usd" t-value="request.env['ir.config_parameter'].sudo().get_param('tec_website_catalog_pro.show_usd_exchange', 'True') == 'True'"/>
+            <div t-if="show_usd and product.x_usd_price" class="text-muted" style="font-size: 0.7rem;">
+                Ref. u$s <t t-out="product.x_usd_price" t-options="{'widget': 'float', 'precision': 2}"/>
+            </div>
+        </xpath>
+    </template>
+</odoo>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="dropship_backend_view_form_inherit_air_enrich" model="ir.ui.view">
+        <field name="name">dropship.backend.view.form.inherit.air.enrich</field>
+        <field name="model">dropship.backend</field>
+        <field name="inherit_id" ref="tec_dropshipping_core.view_dropship_backend_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_sync_air_brands" 
+                        string="Sincronizar Marcas (Air)" 
+                        type="object" 
+                        class="btn-secondary"
+                        invisible="provider_code != 'air_csv'"/>
+                <button name="action_sync_air_characteristics" 
+                        string="Sincronizar Características (Air)" 
+                        type="object" 
+                        class="btn-secondary"
+                        invisible="provider_code != 'air_csv'"/>
+            </xpath>
+            <xpath expr="//group[@name='provider_config']" position="after">
+                <group string="Enriquecimiento Air (MVP)" invisible="provider_code != 'air_csv'">
+                    <field name="url_endpoint_characteristics" placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>
