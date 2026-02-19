@@ -44,10 +44,10 @@ class ProductTemplate(models.Model):
                             success_sources.append('lenovo')
                             self._log_enrichment(product, 'success', 'Lenovo PSREF', 'Datos técnicos e imágenes actualizados.')
                         else:
-                            product.message_post(body="<span style='color: #666;'>ℹ️ <b>Lenovo PSREF:</b> Producto no encontrado en base oficial.</span>")
+                            product.message_post(body="ℹ️ <b>Lenovo PSREF:</b> Producto no encontrado en base oficial.")
                 except Exception as e:
                     _logger.error(f"Lenovo Engine Failed: {e}")
-                    product.message_post(body=f"<span style='color: red;'>❌ <b>Lenovo PSREF Error:</b> {str(e)}</span>")
+                    product.message_post(body=f"❌ <b>Lenovo PSREF Error:</b> {str(e)}")
             
             # 2. Icecat
             if ICP.get_param('tec_catalog_enricher.use_icecat'):
@@ -57,10 +57,10 @@ class ProductTemplate(models.Model):
                             success_sources.append('icecat')
                             self._log_enrichment(product, 'success', 'Icecat', 'Datos técnicos e imágenes actualizados.')
                         else:
-                             product.message_post(body="<span style='color: #666;'>ℹ️ <b>Icecat:</b> Producto no encontrado en catálogo.</span>")
+                             product.message_post(body="ℹ️ <b>Icecat:</b> Producto no encontrado en catálogo.")
                 except Exception as e:
                     _logger.error(f"Icecat Engine Failed: {e}")
-                    product.message_post(body=f"<span style='color: red;'>❌ <b>Icecat Error:</b> {str(e)}</span>")
+                    product.message_post(body=f"❌ <b>Icecat Error:</b> {str(e)}")
 
             # 3. Google Fallback
             if not success_sources and ICP.get_param('tec_catalog_enricher.use_google'):
@@ -70,12 +70,12 @@ class ProductTemplate(models.Model):
                             success_sources.append('google')
                             self._log_enrichment(product, 'success', 'Google', 'Datos básicos obtenidos.')
                         else:
-                            product.message_post(body="<span style='color: #666;'>ℹ️ <b>Google Fallback:</b> Sin resultados útiles.</span>")
+                            product.message_post(body="ℹ️ <b>Google Fallback:</b> Sin resultados útiles.")
                 except Exception as e:
                     _logger.error(f"Google Engine Failed: {e}")
-                    product.message_post(body=f"<span style='color: red;'>❌ <b>Google Error:</b> {str(e)}</span>")
+                    product.message_post(body=f"❌ <b>Google Error:</b> {str(e)}")
 
-            # Update final state & Premium Logs
+            # Update final state & Logs
             if success_sources:
                 success_count += 1
                 product.enrichment_state = 'tech_done'
@@ -87,27 +87,17 @@ class ProductTemplate(models.Model):
                 # Reset force flag
                 product.force_enrichment = False
                 
-                # Styled Success Log
+                # Simple Success Log
                 sources_label = ", ".join([s.capitalize() for s in success_sources])
-                body = f"""
-                    <div style="background-color: #eafaf1; padding: 12px; border-left: 5px solid #2ecc71; border-radius: 4px; margin: 5px 0;">
-                        <strong style="color: #27ae60; font-size: 14px;">✅ Enriquecimiento Exitoso</strong><br/>
-                        <span style="color: #2c3e50;">Se obtuvo información técnica oficial desde: <b>{sources_label}</b>.</span>
-                    </div>
-                """
+                body = f"✅ <b>Enriquecimiento Exitoso:</b> Se obtuvo información técnica desde: <b>{sources_label}</b>."
                 product.message_post(body=body)
             else:
                 # No data found at all
                 msg = "No se encontró información técnica en ninguna de las fuentes consultadas."
                 self._log_enrichment(product, 'warning', 'Sincronizador', msg)
                 
-                # Styled Warning Log
-                body = f"""
-                    <div style="background-color: #fef9e7; padding: 12px; border-left: 5px solid #f1c40f; border-radius: 4px; margin: 5px 0;">
-                        <strong style="color: #f39c12; font-size: 14px;">⚠️ Sin Resultados</strong><br/>
-                        <span style="color: #2c3e50;">Se consultaron todas las fuentes pero no se hallaron datos para el PN: <b>{mpn}</b>.</span>
-                    </div>
-                """
+                # Simple Warning Log
+                body = f"⚠️ <b>Sin Resultados:</b> Se consultaron todas las fuentes pero no se hallaron datos para el PN: <b>{mpn}</b>."
                 product.message_post(body=body)
 
         # Final Summary Notification for Mass Action
