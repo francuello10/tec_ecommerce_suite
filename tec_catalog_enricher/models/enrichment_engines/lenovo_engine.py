@@ -47,6 +47,7 @@ def enrich_product(product, mpn):
         product_url = product_info.get('page')
         product_key = item.get('ProductKey')
         main_img_url_api = product_info.get('photo')
+        datasheet_url = product_info.get('datasheet')
         
         if not product_url or not product_key:
             return False
@@ -56,9 +57,11 @@ def enrich_product(product, mpn):
         gallery_images_data = [] # Store binary image data in memory
         seen_urls = set() # URL Deduplication
         
-        # Save Official URL
+        # Save Official URLs
         if not product.external_product_url:
             vals['external_product_url'] = product_url
+        if not product.lenovo_datasheet_url and datasheet_url:
+            vals['lenovo_datasheet_url'] = datasheet_url
 
         # 2. Fetch Specifications JSON API (Robust)
         spec_api_url = f"https://psref.lenovo.com/api/model/Info/SpecData?model_code={mpn}&show_hyphen=false"

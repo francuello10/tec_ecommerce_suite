@@ -27,6 +27,7 @@ class ProductTemplate(models.Model):
 
     external_product_url = fields.Char(string="URL Ficha Oficial", help="Link a la página oficial del fabricante.")
     icecat_product_url = fields.Char(string="URL Icecat", help="Link directo a la ficha en Icecat.")
+    lenovo_datasheet_url = fields.Char(string="URL Datasheet Lenovo", help="Link al PDF oficial de Lenovo.")
     support_search_url = fields.Char(string="URL Soporte", compute='_compute_support_url', help="Link dinámico de búsqueda de drivers/soporte.")
     force_enrichment = fields.Boolean(string="Forzar Actualización", help="Si se marca, permite sobrescribir datos existentes.")
 
