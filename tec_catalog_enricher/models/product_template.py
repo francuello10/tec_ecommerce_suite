@@ -28,7 +28,6 @@ class ProductTemplate(models.Model):
     external_product_url = fields.Char(string="URL Ficha Oficial", help="Link a la página oficial del fabricante.")
     icecat_product_url = fields.Char(string="URL Icecat", help="Link directo a la ficha en Icecat.")
     lenovo_datasheet_url = fields.Char(string="URL Datasheet Lenovo", help="Link al PDF oficial de Lenovo.")
-    support_search_url = fields.Char(string="URL Soporte", compute='_compute_support_url', help="Link dinámico de búsqueda de drivers/soporte.")
     force_enrichment = fields.Boolean(string="Forzar Actualización", help="Si se marca, permite sobrescribir datos existentes.")
 
     # Modified: Remove CREATE override that sets MPN = default_code
@@ -36,14 +35,6 @@ class ProductTemplate(models.Model):
     # We rely on specific dropshipping modules to set original_part_number
 
 
-    @api.depends('product_brand_id', 'original_part_number')
-    def _compute_support_url(self):
-        for product in self:
-            if product.product_brand_id and product.original_part_number:
-                query = f"support {product.product_brand_id.name} {product.original_part_number} drivers"
-                product.support_search_url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
-            else:
-                product.support_search_url = False
 
     def action_fetch_technical_data(self):
         """ Fetch data from multiple sources. Non-waterfall (Additive). """

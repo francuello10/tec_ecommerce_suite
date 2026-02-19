@@ -31,7 +31,6 @@
                             <field name="external_product_url" string="Página Lenovo (PSREF)" widget="url"/>
                             <field name="lenovo_datasheet_url" string="Datasheet PDF Lenovo" widget="url"/>
                             <field name="icecat_product_url" string="URL Icecat" widget="url"/>
-                            <field name="support_search_url" string="Búsqueda de Soporte/Drivers" widget="url"/>
                         </group>
                     </group>
                 </page>
