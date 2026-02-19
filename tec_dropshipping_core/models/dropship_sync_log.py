@@ -5,13 +5,14 @@ class DropshipSyncLog(models.Model):
     _description = 'Dropshipping Sync Log'
     _order = 'sync_date desc'
 
-    backend_id = fields.Many2one('dropship.backend', string='Backend', required=True, ondelete='cascade')
+    backend_id = fields.Many2one('dropship.backend', string='Backend', required=False, ondelete='cascade')
     sync_date = fields.Datetime(string='Sync Date', default=fields.Datetime.now, readonly=True)
     sync_type = fields.Selection([
         ('catalog', 'Inventory & Prices'),
         ('characteristics', 'Content & Images'),
-        ('brands', 'Brands Sync')
-    ], string='Sync Type', readonly=True)
+        ('brands', 'Brands Sync'),
+        ('enrichment', 'Product Enrichment'),
+    ], string='Sync Type', required=True)
     
     products_created = fields.Integer(string='Created', readonly=True)
     products_updated = fields.Integer(string='Updated', readonly=True)

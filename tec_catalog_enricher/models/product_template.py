@@ -26,6 +26,7 @@ class ProductTemplate(models.Model):
     ], string="Fuente de Datos", readonly=True, copy=False)
 
     external_product_url = fields.Char(string="URL Ficha Oficial", help="Link a la página oficial del fabricante.")
+    icecat_product_url = fields.Char(string="URL Icecat", help="Link directo a la ficha en Icecat.")
     support_search_url = fields.Char(string="URL Soporte", compute='_compute_support_url', help="Link dinámico de búsqueda de drivers/soporte.")
     force_enrichment = fields.Boolean(string="Forzar Actualización", help="Si se marca, permite sobrescribir datos existentes.")
 
@@ -44,34 +45,66 @@ class ProductTemplate(models.Model):
                 product.support_search_url = False
 
     def action_fetch_technical_data(self):
-        """ Hard Data Waterfall: Lenovo -> Icecat -> Google """
+        """ Fetch data from multiple sources. Non-waterfall (Additive). """
         ICP = self.env['ir.config_parameter'].sudo()
         for product in self:
             mpn = product.original_part_number or product.default_code
             if not mpn:
                 continue
 
-            # 1. Lenovo PSREF (Specialist) - No toggle yet as it's built-in
+            success_sources = []
+
+            # 1. Lenovo PSREF (Specialist)
             if product.product_brand_id.name and 'lenovo' in product.product_brand_id.name.lower():
                 _logger.info(f"{SUITE_LOG_PREFIX}Enriching {mpn} via Lenovo PSREF")
-                if lenovo_engine.enrich_product(product, mpn):
-                    product.enrichment_source = 'lenovo'
-                    product.enrichment_state = 'tech_done'
-                    continue
+                try:
+                    with self.env.cr.savepoint():
+                        if lenovo_engine.enrich_product(product, mpn):
+                            success_sources.append('lenovo')
+                            self._log_enrichment(product, 'success', 'Lenovo PSREF', 'Datos técnicos e imágenes actualizados.')
+                        else:
+                            self._log_enrichment(product, 'warning', 'Lenovo PSREF', 'No se encontraron datos en PSREF.')
+                except Exception as e:
+                    _logger.error(f"Lenovo Engine Failed: {e}")
+                    self._log_enrichment(product, 'error', 'Lenovo PSREF', f'Error crítico: {str(e)}')
             
             # 2. Icecat (Standard)
             if ICP.get_param('tec_catalog_enricher.use_icecat'):
                 _logger.info(f"{SUITE_LOG_PREFIX}Enriching {mpn} via Icecat")
-                if icecat_engine.enrich_product(product, mpn):
-                    product.enrichment_source = 'icecat'
-                    product.enrichment_state = 'tech_done'
-                    continue
+                try:
+                    with self.env.cr.savepoint():
+                        if icecat_engine.enrich_product(product, mpn):
+                            success_sources.append('icecat')
+                            self._log_enrichment(product, 'success', 'Icecat', 'Datos técnicos e imágenes actualizados.')
+                        else:
+                             self._log_enrichment(product, 'warning', 'Icecat', 'Producto no encontrado o error de conexión.')
+                except Exception as e:
+                    _logger.error(f"Icecat Engine Failed: {e}")
+                    self._log_enrichment(product, 'error', 'Icecat', f'Error crítico: {str(e)}')
 
-            # 3. Google (Fallback)
-            if ICP.get_param('tec_catalog_enricher.use_google'):
-                if google_engine.enrich_product(product, mpn):
-                    product.enrichment_source = 'google'
-                    product.enrichment_state = 'tech_done'
+            # 3. Google (Fallback) - Only if no hard data was found yet? 
+            # Or always? User says "Hacer los dos y luego depuro". 
+            # Let's run Google only if nothing else found to avoid too much noise, or per user preference.
+            # For now, following "do both", let's keep waterfall for google or run it too.
+            if not success_sources and ICP.get_param('tec_catalog_enricher.use_google'):
+                try:
+                    with self.env.cr.savepoint():
+                        if google_engine.enrich_product(product, mpn):
+                            success_sources.append('google')
+                            self._log_enrichment(product, 'success', 'Google', 'Datos básicos obtenidos.')
+                        else:
+                            self._log_enrichment(product, 'warning', 'Google', 'Búsqueda sin resultados útiles.')
+                except Exception as e:
+                    _logger.error(f"Google Engine Failed: {e}")
+                    self._log_enrichment(product, 'error', 'Google', f'Error crítico: {str(e)}')
+
+            # Update final state based on all sources
+            if success_sources:
+                product.enrichment_state = 'tech_done'
+                if len(success_sources) > 1:
+                    product.enrichment_source = 'mixed'
+                else:
+                    product.enrichment_source = success_sources[0]
     
     def action_generate_marketing_content(self):
         """ Soft Data + Social Proof: YouTube -> Gemini AI """
@@ -105,6 +138,20 @@ class ProductTemplate(models.Model):
         # 2. Find carts with these products
         # 3. Send email notifications
         pass
+
+    def _log_enrichment(self, product, level, source, message):
+        """ Helper to log enrichment actions """
+        try:
+             # status map: 'success' -> 'success', 'warning' -> 'partial', 'error' -> 'error'
+             status_map = {'success': 'success', 'warning': 'partial', 'error': 'error'}
+             
+             self.env['tec.dropshipping.log'].create({
+                'sync_type': 'enrichment',
+                'status': status_map.get(level, 'error'), 
+                'log_summary': f"[Enrichment: {source}] {product.name} ({product.original_part_number}): {message}"
+            })
+        except Exception as e:
+            _logger.warning(f"Failed to create enrichment log: {e}")
 
     def action_open_website(self):
         self.ensure_one()

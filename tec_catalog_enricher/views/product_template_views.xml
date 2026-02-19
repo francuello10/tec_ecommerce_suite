@@ -29,11 +29,35 @@
                         <group string="Identificadores Externos">
                             <field name="original_part_number" string="Número de Parte Origen" readonly="1"/>
                             <field name="external_product_url" string="URL Ficha Oficial" widget="url"/>
+                            <field name="icecat_product_url" string="URL Icecat" widget="url"/>
                             <field name="support_search_url" string="URL Soporte Marca" widget="url"/>
                         </group>
                     </group>
                 </page>
             </xpath>
+        </field>
+    </record>
+
+    <!-- Mass Enrichment Server Action -->
+    <record id="action_mass_fetch_technical_data" model="ir.actions.server">
+        <field name="name">🔍 Enriquecer Masivamente (Técnico)</field>
+        <field name="model_id" ref="product.model_product_template"/>
+        <field name="binding_model_id" ref="product.model_product_template"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">
+            action = records.action_fetch_technical_data()
+        </field>
+    </record>
+
+    <record id="action_mass_fetch_marketing_data" model="ir.actions.server">
+        <field name="name">✨ Enriquecer Masivamente (Marketing)</field>
+        <field name="model_id" ref="product.model_product_template"/>
+        <field name="binding_model_id" ref="product.model_product_template"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">
+            action = records.action_generate_marketing_content()
         </field>
     </record>
 </odoo>
