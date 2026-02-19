@@ -15,6 +15,25 @@ class ProductTemplate(models.Model):
     stock_cba = fields.Float(string='Stock CBA', compute='_compute_stock_by_node', store=False)
     stock_bsas = fields.Float(string='Stock BSAS', compute='_compute_stock_by_node', store=False)
 
+    # --- Enrichment Control ---
+    enrichment_state = fields.Selection([
+        ('draft', 'Pending'),
+        ('tech_done', 'Tech Info OK'),
+        ('marketing_done', 'Marketing OK'),
+        ('full_enriched', 'Fully Enriched')
+    ], string="Enrichment Status", default='draft', tracking=True)
+
+    enrichment_source = fields.Selection([
+        ('manual', 'Manual'),
+        ('lenovo', 'Lenovo PSREF'),
+        ('icecat', 'Open Icecat'),
+        ('google', 'Google Fallback'),
+        ('ai', 'IA Generada'),
+        ('mixed', 'Fuentes Mixtas')
+    ], string="Fuente de Datos", readonly=True, copy=False)
+
+    force_enrichment = fields.Boolean(string="Forzar Actualización", help="Si se marca, permite sobrescribir datos existentes.")
+
     # --- Air Computers Data (Supplier-Native) ---
     air_description_raw = fields.Text(string='Descripción Air (Raw)', help='Características técnicas crudas desde Air Computers')
     air_has_description = fields.Boolean(string='Tiene Descripción Air', compute='_compute_air_flags', store=True)

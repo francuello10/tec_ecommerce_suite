@@ -268,6 +268,11 @@ class DropshipBackendAir(models.Model):
             _logger.info("Image Auto-Download is disabled. Skipping.")
             return
 
+        # Protection: Do not overwrite enriched images
+        if product.enrichment_state in ['tech_done', 'full_enriched']:
+            _logger.info(f"Skipping generic images for {product.default_code}: Product is enriched.")
+            return
+
         first = True
         # 1. Clear existing extra images (Backend)
         product.tec_product_image_ids.unlink()
