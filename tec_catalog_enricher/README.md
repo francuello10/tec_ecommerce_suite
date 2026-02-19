@@ -11,3 +11,8 @@ The intelligence hub of the Tecnopolis eCommerce Suite. Centrally manages AI-dri
 ## Configuration
 - API Keys: Gemini, Google Search, Icecat.
 - MELI Endpoint settings.
+
+---
+## 👤 Author
+- **Francisco Cuello**
+- **GitHub**: [francuello10](https://github.com/francuello10)

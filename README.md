@@ -27,3 +27,8 @@ All settings are managed via:
 Organized as a cohesive suite under `enterprise/custom/tec_ecommerce_suite/` for maximum maintainability.
 - **Brain**: Absorbed MELI category mapping and AI generation.
 - **Pro**: Absorbed Safety Stock and Enrichment display logic.
+
+---
+## 👤 Author
+- **Francisco Cuello**
+- **GitHub**: [francuello10](https://github.com/francuello10)

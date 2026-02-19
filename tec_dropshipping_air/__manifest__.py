@@ -9,8 +9,8 @@
         - **Rich Content**: Integration with characteristics and high-res media.
         - **Branch Support**: Specific mapping for CBA and BSAS stocks.
     """,
-    'author': 'Tecnopolis',
-    'website': 'https://tecnopolis.com.ar',
+    'author': 'Francisco Cuello',
+    'website': 'https://github.com/francuello10',
     'depends': ['tec_dropshipping_core'],
     'data': [
         'views/dropship_backend_views.xml',

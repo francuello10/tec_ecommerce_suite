@@ -25,17 +25,14 @@ class ProductTemplate(models.Model):
         ('mixed', 'Fuentes Mixtas')
     ], string="Fuente de Datos", readonly=True, copy=False)
 
-    original_part_number = fields.Char(string="MPN Original", copy=False, help="Backup inmutable del Manufacturer Part Number.")
     external_product_url = fields.Char(string="URL Ficha Oficial", help="Link a la página oficial del fabricante.")
     support_search_url = fields.Char(string="URL Soporte", compute='_compute_support_url', help="Link dinámico de búsqueda de drivers/soporte.")
     force_enrichment = fields.Boolean(string="Forzar Actualización", help="Si se marca, permite sobrescribir datos existentes.")
 
-    @api.model_create_multi
-    def create(self, vals_list):
-        for vals in vals_list:
-            if 'default_code' in vals:
-                vals['original_part_number'] = vals['default_code']
-        return super().create(vals_list)
+    # Modified: Remove CREATE override that sets MPN = default_code
+    # Because in Dropshipping default_code IS Supplier SKU, not MPN
+    # We rely on specific dropshipping modules to set original_part_number
+
 
     @api.depends('product_brand_id', 'original_part_number')
     def _compute_support_url(self):

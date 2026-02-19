@@ -12,7 +12,7 @@
             <xpath expr="//group[@name='group_general']" position="inside">
                 <group string="Valores Dropshipping / USD" name="dropship_prices">
                     <field name="product_brand_id" options="{'no_create_edit': True}"/>
-                    <field name="x_manufacturer_pn"/>
+                    <field name="original_part_number"/>
                     <field name="x_usd_price" widget="monetary" options="{'currency_field': 'usd_currency_id'}" decoration-bf="1"/>
                     <field name="x_usd_cost" widget="monetary" options="{'currency_field': 'usd_currency_id'}"/>
                 </group>
@@ -53,6 +53,7 @@
             <xpath expr="//list" position="inside">
                 <field name="dropship_location_id" string="Sucursal" optional="show"/>
                 <field name="x_vendor_stock" string="Stock Proveedor" optional="show"/>
+                <field name="x_last_update_date" string="Ult. Actualización" optional="show"/>
             </xpath>
         </field>
     </record>
@@ -80,7 +81,7 @@
         <field name="arch" type="xml">
             <field name="name" position="after">
                 <field name="product_brand_id"/>
-                <field name="x_manufacturer_pn"/>
+                <field name="original_part_number"/>
             </field>
             <filter name="filter_to_sell" position="after">
                 <filter string="Marca" name="group_brand" context="{'group_by':'product_brand_id'}"/>

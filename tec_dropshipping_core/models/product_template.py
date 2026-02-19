@@ -6,7 +6,7 @@ class ProductTemplate(models.Model):
     product_brand_id = fields.Many2one('tec.catalog.brand', string='Marca')
     tec_product_image_ids = fields.One2many('tec.product.image', 'product_tmpl_id', string='Imágenes Adicionales (Backend)')
     tec_enriched_description = fields.Html(string='Descripción Enriquecida (IA)', translate=True, help='Contenido de marketing generado por IA.')
-    x_manufacturer_pn = fields.Char(string='PN Fabricante (MPN)', index=True, help='Part Number Original del Fabricante')
+    original_part_number = fields.Char(string='PN Fabricante (MPN)', index=True, help='Part Number Original del Fabricante (Backup inmutable).')
     virtual_available_web = fields.Float(
         string='Stock Disponible Web',
         compute='_compute_virtual_available_web',
@@ -56,7 +56,8 @@ class ProductTemplate(models.Model):
                 if any(x in loc_name for x in ['CBA', 'CÓRDOBA', 'CORDOBA']):
                     stock_cba += seller.x_vendor_stock
                 # Rules for Buenos Aires / Lugano
-                if any(x in loc_name for x in ['LUG', 'LUGANO', 'BSAS', 'BS AS', 'BS.AS']):
+                # Updated to match "Buenos Aires", "BS AS", "BSAS", "LUGANO"
+                if any(x in loc_name for x in ['LUG', 'LUGANO', 'BSAS', 'BS AS', 'BS.AS', 'BUENOS AIRES', 'BAIRES']):
                     stock_bsas += seller.x_vendor_stock
             product.stock_cba = stock_cba
             product.stock_bsas = stock_bsas
@@ -79,3 +80,4 @@ class SupplierInfo(models.Model):
 
     x_vendor_stock = fields.Float(string='Stock del Proveedor', default=0.0)
     dropship_location_id = fields.Many2one('dropship.location', string='Ubicación Dropship', help='Sucursal/Depósito de origen de este stock')
+    x_last_update_date = fields.Datetime(string='Última Actualización', help='Fecha y hora de la última sincronización de stock con el proveedor.')

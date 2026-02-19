@@ -9,8 +9,8 @@
         - **Trust Building**: Smart labels (New, Low Stock, OFF) and Safety Stock protection.
         - **Content**: Integrated manufacturer links and support documentation.
     """,
-    'author': 'Tecnopolis',
-    'website': 'https://tecnopolis.com.ar',
+    'author': 'Francisco Cuello',
+    'website': 'https://github.com/francuello10',
     'depends': ['website_sale', 'tec_dropshipping_core'],
     'data': [
         'views/tec_catalog_brand_views.xml',

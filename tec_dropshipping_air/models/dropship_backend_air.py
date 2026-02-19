@@ -191,7 +191,7 @@ class DropshipBackendAir(models.Model):
                         'description_sale': desc_raw or name,
                     }
                     if pn:
-                        vals['x_manufacturer_pn'] = pn
+                        vals['original_part_number'] = pn
                     
                     if not product_tmpl:
                         if only_existing:
@@ -218,7 +218,7 @@ class DropshipBackendAir(models.Model):
                         _logger.info(f"{SUITE_LOG_PREFIX}Created generic product for {cod_prov}")
                     else:
                         # Only update if description or PN changed
-                        if product_tmpl.air_description_raw != desc_raw or product_tmpl.x_manufacturer_pn != pn:
+                        if product_tmpl.air_description_raw != desc_raw or product_tmpl.original_part_number != pn:
                             updated_count += 1
                             product_tmpl.write(vals)
                         else:
@@ -435,7 +435,26 @@ class DropshipBackendAir(models.Model):
         
         if to_create:
             Brand.create(to_create)
-            _logger.info(f"Created {len(to_create)} new brands from CSV.")
+            count = len(to_create)
+            _logger.info(f"Created {count} new brands from CSV.")
+            
+            # Create success log for brands
+            self.env['tec.dropshipping.log'].create({
+                'backend_id': self.id,
+                'sync_type': 'brands', # We might need to add this selection to the model or use 'other'
+                'status': 'success',
+                'log_summary': f"Sincronización de marcas completada. {count} nuevas marcas creadas."
+            })
+        else:
+             _logger.info("No new brands found to create.")
+             # Optional: Log that no brands were created? Or too noisy? 
+             # User asked for "sync marcas tambien debe quedar logeado".
+             self.env['tec.dropshipping.log'].create({
+                'backend_id': self.id,
+                'sync_type': 'brands', # We might need to add this selection to the model or use 'other'
+                'status': 'success',
+                'log_summary': f"Sincronización de marcas verificada. No se encontraron nuevas marcas."
+            })
 
 
 
@@ -458,6 +477,8 @@ class DropshipBackendAir(models.Model):
         
         # Clean PN before using
         part_number = self._get_row_str(row, 'Part Number', col_map)
+        if not part_number:
+            part_number = self._get_row_str(row, 'ORIGINAL_PART_NUMBER', col_map)
 
         # 1. Category
         category = self._get_or_create_category(row, col_map)
@@ -478,7 +499,7 @@ class DropshipBackendAir(models.Model):
         vals = {
             'name': str(row.get('DESCRIPCIÓN', 'New Product')).strip(),
             'default_code': cod_prov,
-            'x_manufacturer_pn': part_number,
+            'original_part_number': part_number,
             'type': 'consu',
             'categ_id': category.id,
             'product_brand_id': brand.id if brand else False,
@@ -528,6 +549,8 @@ class DropshipBackendAir(models.Model):
             ars_cost_net = usd_currency._convert(usd_cost, company_currency, self.env.company, fields.Date.today())
 
         part_number = self._get_row_str(row, 'Part Number', col_map)
+        if not part_number:
+            part_number = self._get_row_str(row, 'ORIGINAL_PART_NUMBER', col_map)
         cod_prov = self._get_row_str(row, 'CODPROV', col_map)
         
         # Tax calculation (Preserve logic)
@@ -548,7 +571,7 @@ class DropshipBackendAir(models.Model):
             'x_usd_cost': usd_cost,
             'list_price': ars_sale_price_net,
             'standard_price': ars_cost_net,
-            'x_manufacturer_pn': part_number,
+            'original_part_number': part_number,
             'description_sale': f"PN: {part_number}\nCod. Prov: {cod_prov}",
             'categ_id': category.id,
         }
@@ -582,7 +605,7 @@ class DropshipBackendAir(models.Model):
         _logger.debug(f"Writing vals for {product.default_code}: {vals}")
         product.write(vals)
 
-    def _update_supplier_info(self, product, location, cost, qty, sequence, product_code=False):
+    def _update_supplier_info(self, product, location, cost, qty, sequence, product_code=False, last_update=False):
         SupplierInfo = self.env['product.supplierinfo']
         
         vals = {
@@ -595,6 +618,7 @@ class DropshipBackendAir(models.Model):
             'x_vendor_stock': qty,
             'product_code': product_code,
             'dropship_location_id': location.id,
+            'x_last_update_date': last_update,
         }
         SupplierInfo.create(vals)
 
@@ -678,6 +702,40 @@ class DropshipBackendAir(models.Model):
             for p in products:
                 existing_products_map[p.default_code] = p
 
+        
+        # --- Date Extraction Optimization ---
+        # User requested to extract 'FECHA' (Col M) which is constant for all rows.
+        global_last_update = False
+        date_col_actual = col_map.get('FECHA')
+        
+        # Fallback to index 12 (Col M) if 'FECHA' not found by name
+        if not date_col_actual and len(df.columns) > 12:
+            potential_col = df.columns[12] # Index 12 is M
+            _logger.info(f"FECHA column not found by name. Trying Column Index 12: {potential_col}")
+            date_col_actual = potential_col
+
+        if date_col_actual:
+            try:
+                # Get first non-null value
+                valid_dates = df[date_col_actual].dropna()
+                if not valid_dates.empty:
+                    raw_date = valid_dates.iloc[0]
+                    # Attempt robust parsing
+                    if isinstance(raw_date, (datetime, pd.Timestamp)):
+                        global_last_update = raw_date
+                    else:
+                        # Parse strings like "18/02/2026 15:30"
+                        global_last_update = pd.to_datetime(str(raw_date).strip(), dayfirst=True, errors='coerce')
+                    
+                    if pd.isnull(global_last_update):
+                        global_last_update = False
+                    elif hasattr(global_last_update, 'to_pydatetime'):
+                         global_last_update = global_last_update.to_pydatetime()
+                        
+                    _logger.info(f"Global Last Update Date extracted: {global_last_update}")
+            except Exception as e:
+                _logger.warning(f"Failed to extract global date from column {date_col_actual}: {e}")
+
         created_count = 0
         updated_count = 0
         
@@ -722,8 +780,8 @@ class DropshipBackendAir(models.Model):
                         else:
                              qty = self._get_row_val(row, target_col, col_map)
 
-                        if qty > 0:
-                            self._update_supplier_info(product, loc, raw_cost, qty, seq, product_code=cod_prov)
+                        # Always update supplier info to record the last scrape date, even if stock is 0
+                        self._update_supplier_info(product, loc, raw_cost, qty, seq, product_code=cod_prov, last_update=global_last_update)
                         seq += 1
                     
                     # Check Publication Status

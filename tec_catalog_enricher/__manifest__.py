@@ -9,8 +9,8 @@
         - **AI Copywriting**: Gemini-powered product content.
         - **Smart Mapping**: AI-driven categorization for Marketplaces (MELI).
     """,
-    'author': 'Tecnopolis',
-    'website': 'https://tecnopolis.com.ar',
+    'author': 'Francisco Cuello',
+    'website': 'https://github.com/francuello10',
     'depends': ['base', 'product', 'tec_dropshipping_core'],
     'external_dependencies': {
         'python': ['requests', 'bs4', 'google.generativeai'],

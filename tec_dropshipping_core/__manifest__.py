@@ -9,8 +9,8 @@
         - **Finance**: Automated cost/price conversion with per-backend exchange rates.
         - **Mappings**: Robust supplier-to-local brand and tax mapping system.
     """,
-    'author': 'Tecnopolis',
-    'website': 'https://tecnopolis.com.ar',
+    'author': 'Francisco Cuello',
+    'website': 'https://github.com/francuello10',
     'depends': ['base', 'sale_management', 'purchase', 'stock'],
     'data': [
         'security/tec_dropshipping_security.xml',

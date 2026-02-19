@@ -56,20 +56,20 @@ class ResConfigSettings(models.TransientModel):
 
     safety_stock_active = fields.Boolean(
         string="Habilitar Protección de Stock",
-        config_parameter='tec_website_safety_stock.active',
+        config_parameter='tec_website_catalog_pro.safety_stock_active',
         default=True,
         help="Si se desactiva, el sitio web mostrará el stock real sin reducciones de seguridad."
     )
 
     catalog_enricher_show_spec_links = fields.Boolean(
         string="Mostrar Links a Fichas Oficiales",
-        config_parameter='tec_catalog_enricher_website.show_spec_links',
+        config_parameter='tec_website_catalog_pro.show_spec_links',
         default=True
     )
 
     catalog_enricher_show_support_buttons = fields.Boolean(
         string="Mostrar Botones de Soporte Oficial",
-        config_parameter='tec_catalog_enricher_website.show_support_buttons',
+        config_parameter='tec_website_catalog_pro.show_support_buttons',
         default=True
     )
 

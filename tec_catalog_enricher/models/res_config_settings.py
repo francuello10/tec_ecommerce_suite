@@ -29,13 +29,13 @@ class ResConfigSettings(models.TransientModel):
     # MELI Settings (Migrated from tec_catalog_meli_categories)
     tec_meli_api_url = fields.Char(
         string="MELI API URL",
-        config_parameter='tec_catalog_meli.api_url',
+        config_parameter='tec_catalog_enricher.meli_api_url',
         default='https://api.mercadolibre.com'
     )
 
     tec_meli_enable_ai_mapping = fields.Boolean(
         string="Enable AI Category Mapping",
-        config_parameter='tec_catalog_meli.enable_ai',
+        config_parameter='tec_catalog_enricher.meli_enable_ai',
         default=True
     )
     use_youtube = fields.Boolean(string="Habilitar YouTube Reviews", config_parameter='tec_catalog_enricher.use_youtube', default=False)
