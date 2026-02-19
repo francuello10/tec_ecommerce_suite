@@ -71,6 +71,38 @@
                                 </setting>
                             </div>
                         </div>
+
+                        <!-- Advanced AI Configuration (Premium Section) -->
+                        <div class="row mt32" invisible="not use_gemini">
+                            <div class="col-12">
+                                <div class="o_horizontal_separator mt16 mb16">Configuración Avanzada de IA</div>
+                                <div class="row">
+                                    <div class="col-12 col-lg-6">
+                                        <setting string="Inputs de Información" help="Selecciona qué datos se enviarán a la IA para generar el contenido.">
+                                            <div class="content-group">
+                                                <div class="row">
+                                                    <div class="col-6"><field name="ai_input_name"/><label for="ai_input_name" class="ms-2"/></div>
+                                                    <div class="col-6"><field name="ai_input_brand"/><label for="ai_input_brand" class="ms-2"/></div>
+                                                </div>
+                                                <div class="row">
+                                                    <div class="col-6"><field name="ai_input_category"/><label for="ai_input_category" class="ms-2"/></div>
+                                                    <div class="col-6"><field name="ai_input_description_air"/><label for="ai_input_description_air" class="ms-2"/></div>
+                                                </div>
+                                                <div class="row">
+                                                    <div class="col-6"><field name="ai_input_description_enrich"/><label for="ai_input_description_enrich" class="ms-2"/></div>
+                                                    <div class="col-6"><field name="ai_input_thumbnail"/><label for="ai_input_thumbnail" class="ms-2"/></div>
+                                                </div>
+                                            </div>
+                                        </setting>
+                                    </div>
+                                    <div class="col-12 col-lg-6">
+                                        <setting string="Master Prompt" help="Instrucciones maestras para la redacción.">
+                                            <field name="ai_custom_prompt" widget="text" class="w-100" placeholder="Escribe aquí el prompt..."/>
+                                        </setting>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </setting>
 
                     <setting id="enricher_governance" string="Gobernanza" help="Límites y control.">

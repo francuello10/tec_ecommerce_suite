@@ -6,7 +6,11 @@ class ProductTemplate(models.Model):
     product_brand_id = fields.Many2one('tec.catalog.brand', string='Marca')
     tec_product_image_ids = fields.One2many('tec.product.image', 'product_tmpl_id', string='Imágenes Adicionales (Backend)')
     tec_enriched_description = fields.Html(string='Descripción Enriquecida (IA)', translate=True, help='Contenido de marketing generado por IA.')
+    tec_marketing_description = fields.Html(string='Descripción Comercial (SEO)', translate=True, help='Redacción persuasiva y storytelling.')
+    tec_technical_description = fields.Html(string='Ficha Técnica Estructurada', translate=True, help='Especificaciones técnicas en formato tabla.')
+
     original_part_number = fields.Char(string='PN Fabricante (MPN)', index=True, help='Part Number Original del Fabricante (Backup inmutable).')
+    x_original_name = fields.Char(string='Nombre Original (Proveedor)', help='Respaldo del nombre original antes del enriquecimiento SEO.')
     virtual_available_web = fields.Float(
         string='Stock Disponible Web',
         compute='_compute_virtual_available_web',

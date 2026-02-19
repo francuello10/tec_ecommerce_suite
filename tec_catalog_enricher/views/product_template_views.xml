@@ -27,12 +27,23 @@
                             <field name="force_enrichment" string="Forzar Re-enriquecimiento"/>
                         </group>
                         <group string="Identificadores Externos">
+                            <field name="x_original_name" readonly="1"/>
                             <field name="original_part_number" string="Número de Parte Origen" readonly="1"/>
                             <field name="external_product_url" string="Página Lenovo (PSREF)" widget="url"/>
+                        </group>
+                        <group string="Ficha Oficial">
                             <field name="lenovo_datasheet_url" string="Datasheet PDF Lenovo" widget="url"/>
                             <field name="icecat_product_url" string="URL Icecat" widget="url"/>
                         </group>
                     </group>
+                    <notebook>
+                        <page string="Contenido Marketing (Venta)" name="marketing_content">
+                            <field name="tec_marketing_description" widget="html" options="{'style-inline': true}"/>
+                        </page>
+                        <page string="Especificaciones Técnicas" name="technical_content">
+                            <field name="tec_technical_description" widget="html" options="{'style-inline': true}"/>
+                        </page>
+                    </notebook>
                 </page>
             </xpath>
         </field>

@@ -17,62 +17,91 @@ except ImportError:
 
 def enrich_marketing(product):
     """
-    Generates Marketing Content using Gemini AI.
+    Generates Marketing Content using Gemini AI with dynamic focus.
     """
-    api_key = product.env['ir.config_parameter'].sudo().get_param('tec_catalog_enricher.gemini_api_key')
-    model_name = product.env['ir.config_parameter'].sudo().get_param('tec_catalog_enricher.gemini_model') or 'gemini-1.5-flash'
+    ICP = product.env['ir.config_parameter'].sudo()
+    api_key = ICP.get_param('tec_catalog_enricher.gemini_api_key')
+    model_name = ICP.get_param('tec_catalog_enricher.gemini_model') or 'gemini-1.5-flash'
     
     if not api_key:
         _logger.warning("Gemini API Key missing.")
         return False
 
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(model_name)
+    # 1. Config & Prompt
+    custom_prompt = ICP.get_param('tec_catalog_enricher.ai_custom_prompt')
+    use_image = ICP.get_param('tec_catalog_enricher.ai_input_thumbnail')
 
-    # Context Construction
-    specs = "\n".join([f"- {line.attribute_id.name}: {', '.join(line.value_ids.mapped('name'))}" for line in product.attribute_line_ids])
-    air_specs = f"\n[IMPORTANTE] Datos Técnicos Directos del Fabricante (Air Computers):\n{product.air_description_raw}" if product.air_description_raw else ""
+    # 2. Build Dynamic Context
+    input_data = []
+    if ICP.get_param('tec_catalog_enricher.ai_input_brand') and product.product_brand_id:
+        input_data.append(f"Marca: {product.product_brand_id.name}")
     
-    prompt = f"""
-    Actúa como un Copywriter Experto en E-commerce de Hardware al estilo MercadoLibre Argentina.
-    Producto: {product.name}
-    Marca: {product.product_brand_id.name}
-    
-    Insumos para la redacción:
-    {specs}
-    {air_specs}
+    if ICP.get_param('tec_catalog_enricher.ai_input_name'):
+        input_data.append(f"Nombre Original: {product.name}")
+        
+    if ICP.get_param('tec_catalog_enricher.ai_input_description_air') and product.air_description_raw:
+        input_data.append(f"Descripción Air: {product.air_description_raw}")
 
-    TAREA:
-    1. Genera un 'Friendly Name' SEO (Ej: 'Notebook HP 250 G9 i5 8GB SSD').
-    2. Redacta una Descripción HTML con Storytelling, Emojis y lista de beneficios. Tono cercano y tecnológico.
-    3. Genera 5 'Usage Tags' (Ej: 'Gaming', 'Oficina', 'Diseño').
-    
-    Devuelve un JSON con claves: 'seo_name', 'description_html', 'tags'.
-    Do not use markdown code blocks. Just raw JSON.
-    """
-    
+    if ICP.get_param('tec_catalog_enricher.ai_input_description_enrich'):
+        specs = "\n".join([f"- {line.attribute_id.name}: {', '.join(line.value_ids.mapped('name'))}" for line in product.attribute_line_ids])
+        if specs:
+            input_data.append(f"Especificaciones Técnicas:\n{specs}")
+
+    if ICP.get_param('tec_catalog_enricher.ai_input_category') and product.public_categ_ids:
+        input_data.append(f"Categorías: {', '.join(product.public_categ_ids.mapped('name'))}")
+
+    context_str = "\n".join(input_data)
+    final_prompt = custom_prompt.format(inputs=context_str)
+
+    # 3. AI Execution
     try:
-        response = model.generate_content(prompt)
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel(model_name)
+        
+        contents = [final_prompt]
+        
+        # Multimodal: Image support
+        if use_image and product.image_1920:
+            import base64
+            contents.append({
+                "mime_type": "image/png", # Odoo stores as PNG/JPEG
+                "data": product.image_1920 # product.image_1920 is base64
+            })
+
+        response = model.generate_content(contents)
         content = response.text.strip()
+        
         # Clean markdown if present
         if content.startswith('```json'):
             content = content[7:-3]
+        if content.endswith('```'):
+            content = content[:-3]
         
         data = json.loads(content)
         
-        # Apply changes
-        enriched_html = data.get('description_html')
-        
-        # 1. Save to Backend (Always Safe)
-        product.tec_enriched_description = enriched_html
+        # 4. Backup & Apply Changes
+        # Backup original name only if not already backed up
+        if not product.x_original_name:
+            product.x_original_name = product.name
 
-        # 2. Save to Website (If module installed)
-        if hasattr(product, 'website_description'):
-            product.website_description = enriched_html
+        # Update Name (SEO Friendly)
+        new_name = data.get('seo_name')
+        if new_name:
+            product.name = new_name
+
+        # Update Dual Descriptions
+        marketing_html = data.get('marketing_html')
+        technical_html = data.get('technical_html')
         
-        # Tags logic (requires tag model)
-        # tags = data.get('tags', [])
-        # ... logic to create/assign tags ...
+        if marketing_html:
+            product.tec_marketing_description = marketing_html
+            # Fallback for old field and website
+            product.tec_enriched_description = marketing_html
+            if hasattr(product, 'website_description'):
+                product.website_description = marketing_html
+        
+        if technical_html:
+            product.tec_technical_description = technical_html
 
         return True
 

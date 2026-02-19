@@ -24,83 +24,88 @@ class ProductTemplate(models.Model):
         total = len(self)
         success_count = 0
         
+        # Performance: If it's a mass action, we should be careful with timeouts
+        # For very large sets, Odoo usually times out after 60-120s.
+        _logger.info(f"{SUITE_LOG_PREFIX}Starting enrichment for {total} products")
+
         for product in self:
-            # 1. Protection: Skip if already enriched, unless "Force" is checked
-            if product.enrichment_state in ['tech_done', 'full_enriched'] and not product.force_enrichment:
-                _logger.info(f"{SUITE_LOG_PREFIX}Skipping {product.name} (Already Enriched)")
+            try:
+                # 1. Protection: Skip if already enriched, unless "Force" is checked
+                if product.enrichment_state in ['tech_done', 'full_enriched'] and not product.force_enrichment:
+                    _logger.info(f"{SUITE_LOG_PREFIX}Skipping {product.name} (Already Enriched)")
+                    continue
+
+                mpn = product.original_part_number or product.default_code
+                if not mpn:
+                    continue
+
+                success_sources = []
+
+                # Use a specific savepoint per product so one failure doesn't roll back the whole batch
+                with self.env.cr.savepoint():
+                    # 1. Lenovo PSREF
+                    if product.product_brand_id.name and 'lenovo' in product.product_brand_id.name.lower():
+                        try:
+                            if lenovo_engine.enrich_product(product, mpn):
+                                success_sources.append('lenovo')
+                                self._log_enrichment(product, 'success', 'Lenovo PSREF', 'Datos técnicos e imágenes actualizados.')
+                            else:
+                                product.message_post(body="ℹ️ Lenovo PSREF: Producto no encontrado en base oficial.")
+                        except Exception as e:
+                            _logger.error(f"Lenovo Engine Failed: {e}")
+                            product.message_post(body=f"❌ Lenovo PSREF Error: {str(e)}")
+                    
+                    # 2. Icecat
+                    if ICP.get_param('tec_catalog_enricher.use_icecat'):
+                        try:
+                            if icecat_engine.enrich_product(product, mpn):
+                                success_sources.append('icecat')
+                                self._log_enrichment(product, 'success', 'Icecat', 'Datos técnicos e imágenes actualizados.')
+                            else:
+                                 product.message_post(body="ℹ️ Icecat: Producto no encontrado en catálogo.")
+                        except Exception as e:
+                            _logger.error(f"Icecat Engine Failed: {e}")
+                            product.message_post(body=f"❌ Icecat Error: {str(e)}")
+
+                    # 3. Google Fallback
+                    if not success_sources and ICP.get_param('tec_catalog_enricher.use_google'):
+                        try:
+                            if google_engine.enrich_product(product, mpn):
+                                success_sources.append('google')
+                                self._log_enrichment(product, 'success', 'Google', 'Datos básicos obtenidos.')
+                            else:
+                                product.message_post(body="ℹ️ Google Fallback: Sin resultados útiles.")
+                        except Exception as e:
+                            _logger.error(f"Google Engine Failed: {e}")
+                            product.message_post(body=f"❌ Google Error: {str(e)}")
+
+                    # Update final state & Logs
+                    if success_sources:
+                        success_count += 1
+                        product.enrichment_state = 'tech_done'
+                        product.enrichment_source = 'mixed' if len(success_sources) > 1 else success_sources[0]
+                        product.force_enrichment = False
+                        
+                        sources_label = ", ".join([s.capitalize() for s in success_sources])
+                        body = f"✅ Enriquecimiento Exitoso: Se obtuvo información técnica desde: {sources_label}."
+                        product.message_post(body=body)
+                    else:
+                        msg = "No se encontró información técnica en ninguna de las fuentes consultadas."
+                        self._log_enrichment(product, 'warning', 'Sincronizador', msg)
+                        body = f"⚠️ Sin Resultados: Se consultaron todas las fuentes pero no se hallaron datos para el PN: {mpn}."
+                        product.message_post(body=body)
+
+                # IMPORTANT: In mass actions, commit after each product so:
+                # 1. We don't lose work if the whole request times out.
+                # 2. The user can see progress in the logs if they open another tab.
+                if total > 1:
+                    self.env.cr.commit()
+
+            except Exception as product_error:
+                _logger.error(f"Critical error processing product {product.id}: {product_error}")
                 continue
 
-            mpn = product.original_part_number or product.default_code
-            if not mpn:
-                continue
-
-            success_sources = []
-
-            # 1. Lenovo PSREF
-            if product.product_brand_id.name and 'lenovo' in product.product_brand_id.name.lower():
-                try:
-                    with self.env.cr.savepoint():
-                        if lenovo_engine.enrich_product(product, mpn):
-                            success_sources.append('lenovo')
-                            self._log_enrichment(product, 'success', 'Lenovo PSREF', 'Datos técnicos e imágenes actualizados.')
-                        else:
-                            product.message_post(body="ℹ️ <b>Lenovo PSREF:</b> Producto no encontrado en base oficial.")
-                except Exception as e:
-                    _logger.error(f"Lenovo Engine Failed: {e}")
-                    product.message_post(body=f"❌ <b>Lenovo PSREF Error:</b> {str(e)}")
-            
-            # 2. Icecat
-            if ICP.get_param('tec_catalog_enricher.use_icecat'):
-                try:
-                    with self.env.cr.savepoint():
-                        if icecat_engine.enrich_product(product, mpn):
-                            success_sources.append('icecat')
-                            self._log_enrichment(product, 'success', 'Icecat', 'Datos técnicos e imágenes actualizados.')
-                        else:
-                             product.message_post(body="ℹ️ <b>Icecat:</b> Producto no encontrado en catálogo.")
-                except Exception as e:
-                    _logger.error(f"Icecat Engine Failed: {e}")
-                    product.message_post(body=f"❌ <b>Icecat Error:</b> {str(e)}")
-
-            # 3. Google Fallback
-            if not success_sources and ICP.get_param('tec_catalog_enricher.use_google'):
-                try:
-                    with self.env.cr.savepoint():
-                        if google_engine.enrich_product(product, mpn):
-                            success_sources.append('google')
-                            self._log_enrichment(product, 'success', 'Google', 'Datos básicos obtenidos.')
-                        else:
-                            product.message_post(body="ℹ️ <b>Google Fallback:</b> Sin resultados útiles.")
-                except Exception as e:
-                    _logger.error(f"Google Engine Failed: {e}")
-                    product.message_post(body=f"❌ <b>Google Error:</b> {str(e)}")
-
-            # Update final state & Logs
-            if success_sources:
-                success_count += 1
-                product.enrichment_state = 'tech_done'
-                if len(success_sources) > 1:
-                    product.enrichment_source = 'mixed'
-                else:
-                    product.enrichment_source = success_sources[0]
-                
-                # Reset force flag
-                product.force_enrichment = False
-                
-                # Simple Success Log
-                sources_label = ", ".join([s.capitalize() for s in success_sources])
-                body = f"✅ <b>Enriquecimiento Exitoso:</b> Se obtuvo información técnica desde: <b>{sources_label}</b>."
-                product.message_post(body=body)
-            else:
-                # No data found at all
-                msg = "No se encontró información técnica en ninguna de las fuentes consultadas."
-                self._log_enrichment(product, 'warning', 'Sincronizador', msg)
-                
-                # Simple Warning Log
-                body = f"⚠️ <b>Sin Resultados:</b> Se consultaron todas las fuentes pero no se hallaron datos para el PN: <b>{mpn}</b>."
-                product.message_post(body=body)
-
-        # Final Summary Notification for Mass Action
+        # Final Summary Notification
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
@@ -108,33 +113,60 @@ class ProductTemplate(models.Model):
                 'title': 'Proceso de Enriquecimiento Finalizado',
                 'message': f'Se procesaron {total} productos. Éxitos: {success_count} | Fallidos: {total - success_count}',
                 'type': 'success' if success_count > 0 else 'warning',
-                'sticky': False,
+                'sticky': True, # Keep it visible for mass actions
+                'next': {'type': 'ir.actions.client', 'tag': 'soft_reload'},
             }
         }
     
     def action_generate_marketing_content(self):
         """ Soft Data + Social Proof: YouTube -> Gemini AI """
         ICP = self.env['ir.config_parameter'].sudo()
-        for product in self:
-            state = 'tech_done'
-            
-            # 1. YouTube Social Proof
-            if ICP.get_param('tec_catalog_enricher.use_youtube'):
-                if youtube_engine.enrich_video(product):
-                    state = 'marketing_done'
+        total = len(self)
+        success_count = 0
 
-            # 2. Gemini AI Marketing
-            if ICP.get_param('tec_catalog_enricher.use_gemini'):
-                if ai_engine.enrich_marketing(product):
-                     state = 'marketing_done'
-            
-            if state == 'marketing_done':
-                # Check complete status
-                if product.enrichment_state == 'tech_done':
-                    product.enrichment_state = 'full_enriched'
-                else:
-                    product.enrichment_state = 'marketing_done'
-                product.enrichment_source = 'mixed'
+        for product in self:
+            try:
+                with self.env.cr.savepoint():
+                    state = 'tech_done'
+                    
+                    # 1. YouTube Social Proof
+                    if ICP.get_param('tec_catalog_enricher.use_youtube'):
+                        if youtube_engine.enrich_video(product):
+                            state = 'marketing_done'
+
+                    # 2. Gemini AI Marketing
+                    if ICP.get_param('tec_catalog_enricher.use_gemini'):
+                        if ai_engine.enrich_marketing(product):
+                             state = 'marketing_done'
+                    
+                    if state == 'marketing_done':
+                        success_count += 1
+                        # Check complete status
+                        if product.enrichment_state == 'tech_done':
+                            product.enrichment_state = 'full_enriched'
+                        else:
+                            product.enrichment_state = 'marketing_done'
+                        product.enrichment_source = 'mixed'
+
+                # Individual commit for mass actions
+                if total > 1:
+                    self.env.cr.commit()
+
+            except Exception as e:
+                _logger.error(f"Failed to generate marketing for product {product.id}: {e}")
+                continue
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Contenido de Marketing Generado',
+                'message': f'Se procesaron {total} productos. Éxitos: {success_count}',
+                'type': 'success',
+                'sticky': total > 1,
+                'next': {'type': 'ir.actions.client', 'tag': 'soft_reload'},
+            }
+        }
 
     def _cron_notify_price_drops(self):
         """ Task for daily price drop notifications """

@@ -177,7 +177,8 @@
                         <div class="tab-content border p-4 bg-white shadow-sm rounded-bottom" id="productTabContent">
                             <!-- Tab 1: Description -->
                             <div class="tab-pane fade show active" id="description-pane" role="tabpanel" aria-labelledby="description-tab" tabindex="0">
-                                <div t-if="product.website_description" t-field="product.website_description" class="oe_structure oe_empty"/>
+                                <div t-if="product.tec_marketing_description" t-field="product.tec_marketing_description" class="oe_structure oe_empty"/>
+                                <div t-elif="product.website_description" t-field="product.website_description" class="oe_structure oe_empty"/>
                                 <t t-elif="product.air_description_raw">
                                     <t t-set="show_air_desc" t-value="request.env['ir.config_parameter'].sudo().get_param('tec_website_catalog_pro.show_air_description', 'True') == 'True'"/>
                                     <t t-if="show_air_desc">
@@ -199,7 +200,11 @@
                             <!-- Tab 2: Specifications -->
                             <div class="tab-pane fade" id="specs-pane" role="tabpanel" aria-labelledby="specs-tab" tabindex="0">
                                 <h4 class="mb-4">Especificaciones Técnicas</h4>
-                                <table class="table table-striped table-hover table-bordered">
+                                
+                                <!-- New AI Technical Description -->
+                                <div t-if="product.tec_technical_description" t-field="product.tec_technical_description" class="mb-4 oe_skeleton tec-tech-specs"/>
+                                
+                                <table t-if="not product.tec_technical_description and product.attribute_line_ids" class="table table-striped table-hover table-bordered">
                                     <tbody>
                                         <t t-foreach="product.attribute_line_ids" t-as="line">
                                             <tr>
@@ -213,7 +218,7 @@
                                         </t>
                                     </tbody>
                                 </table>
-                                <t t-if="not product.attribute_line_ids">
+                                <t t-if="not product.tec_technical_description and not product.attribute_line_ids">
                                     <p class="text-muted italic">No se han definido especificaciones técnicas para este producto.</p>
                                 </t>
                                 <div id="official_specs_link" class="mt-3">
