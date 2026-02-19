@@ -32,6 +32,12 @@ def enrich_product(product, mpn):
             
         root = etree.fromstring(response.content)
         product_node = root.find('.//Product')
+        
+        # Check for Icecat API Error (False Positives like "The requested XML data-sheet is not present")
+        if product_node is not None and product_node.get('ErrorMessage'):
+            _logger.warning(f"Icecat error for {mpn}: {product_node.get('ErrorMessage')}")
+            return False
+            
         if product_node is None:
             return False
 
