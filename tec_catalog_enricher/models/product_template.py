@@ -44,7 +44,7 @@ class ProductTemplate(models.Model):
                 # Use a specific savepoint per product so one failure doesn't roll back the whole batch
                 with self.env.cr.savepoint():
                     # 1. Lenovo PSREF
-                    if product.product_brand_id.name and 'lenovo' in product.product_brand_id.name.lower():
+                    if ICP.get_param('tec_catalog_enricher.use_lenovo_psref', 'True') == 'True' and product.product_brand_id.name and 'lenovo' in product.product_brand_id.name.lower():
                         try:
                             if lenovo_engine.enrich_product(product, mpn):
                                 success_sources.append('lenovo')

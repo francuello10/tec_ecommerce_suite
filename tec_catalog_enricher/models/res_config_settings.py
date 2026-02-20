@@ -24,6 +24,8 @@ class ResConfigSettings(models.TransientModel):
     use_bestbuy = fields.Boolean(string="Habilitar Best Buy API", config_parameter='tec_catalog_enricher.use_bestbuy', default=False)
     bestbuy_api_key = fields.Char(string="API Key Best Buy", config_parameter='tec_catalog_enricher.bestbuy_api_key')
 
+    use_lenovo_psref = fields.Boolean(string="Habilitar Lenovo PSREF", config_parameter='tec_catalog_enricher.use_lenovo_psref', default=True)
+
     use_pod = fields.Boolean(string="Habilitar Product Open Data", config_parameter='tec_catalog_enricher.use_pod', default=False)
 
     # --- AI Provider Selection ---
@@ -119,3 +121,192 @@ Insumos: {inputs}"""
 
     # --- Governance ---
     max_images_limit = fields.Integer(string="Límite Máximo de Imágenes", config_parameter='tec_catalog_enricher.max_images_limit', default=3)
+
+    # --- API Test Actions ---
+    def action_test_gemini(self):
+        self.ensure_one()
+        api_key = self.gemini_api_key or self.env['ir.config_parameter'].sudo().get_param('tec_catalog_enricher.gemini_api_key')
+        model_name = self.gemini_model or self.env['ir.config_parameter'].sudo().get_param('tec_catalog_enricher.gemini_model') or 'gemini-1.5-flash'
+        if not api_key:
+            return self._notify_error("Falta API Key de Gemini")
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=api_key)
+            # Remove -exp if present for stable testing or just trust selection
+            model = genai.GenerativeModel(model_name)
+            res = model.generate_content("Ping")
+            if res.text:
+                return self._notify_success(f"Gemini ({model_name}): ¡Conexión Exitosa!")
+        except Exception as e:
+            return self._notify_error(f"Gemini Error: {str(e)}")
+
+    def action_test_openai(self):
+        self.ensure_one()
+        api_key = self.openai_api_key or self.env['ir.config_parameter'].sudo().get_param('tec_catalog_enricher.openai_api_key')
+        model_name = self.openai_model or self.env['ir.config_parameter'].sudo().get_param('tec_catalog_enricher.openai_model') or 'gpt-4o-mini'
+        if not api_key:
+            return self._notify_error("Falta API Key de OpenAI")
+        try:
+            import httpx
+            headers = {"Authorization": f"Bearer {api_key}"}
+            # Handle model naming for o4-mini etc if needed
+            res = httpx.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers=headers,
+                json={"model": model_name, "messages": [{"role": "user", "content": "Ping"}], "max_tokens": 5},
+                timeout=10
+            )
+            if res.status_code == 200:
+                return self._notify_success(f"OpenAI ({model_name}): ¡Conexión Exitosa!")
+            return self._notify_error(f"OpenAI Error: {res.text}")
+        except Exception as e:
+            return self._notify_error(f"OpenAI Error: {str(e)}")
+
+    def action_test_google_search(self):
+        self.ensure_one()
+        api_key = self.google_cse_key or self.env['ir.config_parameter'].sudo().get_param('tec_catalog_enricher.google_cse_key')
+        cx = self.google_cse_cx or self.env['ir.config_parameter'].sudo().get_param('tec_catalog_enricher.google_cse_cx')
+        if not api_key or not cx:
+            return self._notify_error("Faltan API Key o CX de Google")
+        try:
+            import requests
+            url = f"https://www.googleapis.com/customsearch/v1?q=odoo&cx={cx}&key={api_key}&num=1"
+            res = requests.get(url, timeout=10).json()
+            if 'items' in res:
+                return self._notify_success("Google Search: ¡Conexión Exitosa!")
+            if 'error' in res:
+                return self._notify_error(f"Google Error: {res['error']['message']}")
+            return self._notify_error(f"Google Error: Respuesta inesperada")
+        except Exception as e:
+            return self._notify_error(f"Google Search Error: {str(e)}")
+
+    def action_test_icecat(self):
+        self.ensure_one()
+        method = self.icecat_auth_method or self.env['ir.config_parameter'].sudo().get_param('tec_catalog_enricher.icecat_auth_method')
+        try:
+            import requests
+            if method == 'token':
+                api_token = self.icecat_api_token or self.env['ir.config_parameter'].sudo().get_param('tec_catalog_enricher.icecat_api_token')
+                content_token = self.icecat_content_token or self.env['ir.config_parameter'].sudo().get_param('tec_catalog_enricher.icecat_content_token')
+                if not content_token:
+                    return self._notify_error("Falta Content Token de Icecat")
+                
+                # Test with a common MPN (Dell Monitor)
+                url = "https://live.icecat.biz/api"
+                # LIVE API requires UserName and lang
+                username = self.icecat_username or self.env['ir.config_parameter'].sudo().get_param('tec_catalog_enricher.icecat_username')
+                
+                params = {
+                    'UserName': username,
+                    'brand': 'Dell',
+                    'part_code': '210-AXLQ',
+                    'content_token': content_token,
+                    'lang': 'es'
+                }
+                headers = {}
+                if api_token:
+                    headers['app_key'] = api_token
+                
+                res = requests.get(url, params=params, headers=headers, timeout=10)
+                if res.status_code == 200:
+                    return self._notify_success("Icecat JSON: ¡Conexión Exitosa!")
+                return self._notify_error(f"Icecat JSON Error {res.status_code}: {res.text[:100]}")
+            else:
+                user = self.icecat_username or self.env['ir.config_parameter'].sudo().get_param('tec_catalog_enricher.icecat_username')
+                pwd = self.icecat_password or self.env['ir.config_parameter'].sudo().get_param('tec_catalog_enricher.icecat_password')
+                if not user or not pwd: return self._notify_error("Faltan credenciales de Icecat")
+                import base64
+                auth = base64.b64encode(f"{user}:{pwd}".encode()).decode()
+                headers = {'Authorization': f'Basic {auth}'}
+                url = "https://data.icecat.biz/xml_s3/xml_server.cgi?rebrand=openicecat;prod_id=210-AXLQ;vendor=Dell;lang=es;output=productxml"
+                res = requests.get(url, headers=headers, timeout=10)
+                if res.status_code == 200:
+                    return self._notify_success("Icecat Basic: ¡Conexión Exitosa!")
+                return self._notify_error(f"Icecat XML Error: {res.status_code}")
+        except Exception as e:
+            return self._notify_error(f"Icecat Error: {str(e)}")
+        return self._notify_error("Error desconocido probando Icecat")
+
+    def action_test_youtube(self):
+        self.ensure_one()
+        api_key = self.youtube_api_key or self.env['ir.config_parameter'].sudo().get_param('tec_catalog_enricher.youtube_api_key')
+        if not api_key:
+            return self._notify_error("Falta API Key de YouTube")
+        try:
+            import requests
+            url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&q=odoo&key={api_key}&maxResults=1"
+            res = requests.get(url, timeout=10).json()
+            if 'items' in res:
+                return self._notify_success("YouTube: ¡Conexión Exitosa!")
+            if 'error' in res:
+                return self._notify_error(f"YouTube Error: {res['error']['message']}")
+        except Exception as e:
+            return self._notify_error(f"YouTube Error: {str(e)}")
+        return self._notify_error("Error desconocido probando YouTube")
+
+    def action_test_lenovo_psref(self):
+        self.ensure_one()
+        try:
+            import requests
+            import time
+            # Test with a well-known Lenovo MPN (e.g., 20XW004KUS - ThinkPad X1)
+            search_url = "https://psref.lenovo.com/api/search/DefinitionFilterAndSearch/Suggest"
+            params = {'kw': '20XW004KUS', 'SearchType': 'Model', 't': int(time.time() * 1000)}
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'application/json, text/plain, */*',
+                'Referer': 'https://psref.lenovo.com/',
+            }
+            res = requests.get(search_url, params=params, headers=headers, timeout=15)
+            
+            if res.status_code != 200:
+                return self._notify_error(f"Lenovo PSREF Error (HTTP {res.status_code})")
+
+            try:
+                json_data = res.json()
+            except Exception:
+                return self._notify_error("Lenovo PSREF: La respuesta no es un JSON válido.")
+
+            if json_data.get('code') == 1 and json_data.get('data'):
+                return self._notify_success("Lenovo PSREF: ¡Conexión Exitosa!")
+            return self._notify_error("Lenovo PSREF: No se obtuvo respuesta del catálogo.")
+        except Exception as e:
+            return self._notify_error(f"Lenovo PSREF Error: {str(e)}")
+
+    def action_test_pod(self):
+        self.ensure_one()
+        try:
+            import requests
+            # Test POD (Product Open Data) - Switched to Open Food Facts for reliability in pinging
+            # URL format: https://world.openfoodfacts.org/api/v0/product/{gtin}.json
+            url = "https://world.openfoodfacts.org/api/v0/product/737628064502.json"
+            res = requests.get(url, timeout=10)
+            if res.status_code == 200:
+                return self._notify_success("Data Catalog (OFF/POD): ¡Conexión Exitosa!")
+            return self._notify_error(f"POD Error {res.status_code}: El servidor no respondió correctamente.")
+        except Exception as e:
+            return self._notify_error(f"POD Error: {str(e)}")
+
+    def _notify_success(self, message):
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Éxito',
+                'message': message,
+                'sticky': False,
+                'type': 'success',
+            }
+        }
+
+    def _notify_error(self, message):
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Error de Conexión',
+                'message': message,
+                'sticky': True,
+                'type': 'danger',
+            }
+        }
