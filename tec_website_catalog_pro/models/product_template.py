@@ -106,10 +106,11 @@ class ProductTemplate(models.Model):
             if not show_labels:
                 template.is_low_stock = False
                 continue
-            # qty_available is computed from stock. 
-            # safety_stock comes from tec_website_safety_stock (computed_safety_stock)
+            
+            # Use sudo to prevent mrp.bom access errors on public users, or use website_stock
+            qty = template.sudo().qty_available
             safety_stock = getattr(template, 'computed_safety_stock', 0.0)
-            template.is_low_stock = (template.qty_available - safety_stock) < 5
+            template.is_low_stock = (qty - safety_stock) < 5
 
     def _compute_discount_percent(self):
         ICP = self.env['ir.config_parameter'].sudo()
@@ -130,15 +131,14 @@ class ProductTemplate(models.Model):
 
     def _compute_website_stock(self):
         website = self.env['website'].get_current_website()
-        mode = website.stock_display_mode if website else 'max'
+        mode = website.sudo().stock_display_mode if website and hasattr(website, 'stock_display_mode') else 'max'
         
         for template in self:
-            # 1. Get raw dropship stock
-            sellers = template.seller_ids.filtered(lambda s: s.dropship_location_id)
+            # 1. Get raw dropship stock (Use sudo to bypass supplierinfo restrictions for public users)
+            sellers = template.sudo().seller_ids.filtered(lambda s: s.dropship_location_id)
             raw_stock = 0.0
             if not sellers:
                 # Fallback to standard qty_available if no dropship sellers? 
-                # Or just 0? User implies this is for the dropship logic.
                 # Let's assume 0 if no dropship info.
                 raw_stock = 0.0
             else:
