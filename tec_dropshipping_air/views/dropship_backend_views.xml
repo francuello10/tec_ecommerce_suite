@@ -6,10 +6,10 @@
         <field name="inherit_id" ref="tec_dropshipping_core.view_dropship_backend_form"/>
         <field name="arch" type="xml">
             <xpath expr="//header" position="inside">
-                <button name="action_sync_air_brands" 
-                        string="Sincronizar Marcas (Air)" 
+                <button name="action_sync_air_stock" 
+                        string="Ajuste Rápido de Stock" 
                         type="object" 
-                        class="btn-secondary"
+                        class="btn-primary"
                         invisible="provider_code != 'air_csv'"/>
                 <button name="action_sync_air_characteristics" 
                         string="Sincronizar Características (Air)" 

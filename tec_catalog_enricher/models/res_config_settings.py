@@ -8,22 +8,60 @@ class ResConfigSettings(models.TransientModel):
     icecat_username = fields.Char(string="Usuario Icecat", config_parameter='tec_catalog_enricher.icecat_username')
     icecat_password = fields.Char(string="Contraseña Icecat", config_parameter='tec_catalog_enricher.icecat_password')
     
+    icecat_auth_method = fields.Selection(
+        selection=[('basic', 'Basic Auth (Legacy)'), ('token', 'Token Auth (New API)')],
+        string="Método de Autenticación",
+        config_parameter='tec_catalog_enricher.icecat_auth_method',
+        default='basic'
+    )
+    icecat_api_token = fields.Char(string="API Access Token", config_parameter='tec_catalog_enricher.icecat_api_token')
+    icecat_content_token = fields.Char(string="Content Access Token", config_parameter='tec_catalog_enricher.icecat_content_token')
+    
     use_google = fields.Boolean(string="Habilitar Google Fallback", config_parameter='tec_catalog_enricher.use_google', default=False)
     google_cse_key = fields.Char(string="API Key Google CSE", config_parameter='tec_catalog_enricher.google_cse_key')
     google_cse_cx = fields.Char(string="ID Motor de Búsqueda (CX)", config_parameter='tec_catalog_enricher.google_cse_cx')
 
-    # --- Soft Data / Soft Data ---
+    use_bestbuy = fields.Boolean(string="Habilitar Best Buy API", config_parameter='tec_catalog_enricher.use_bestbuy', default=False)
+    bestbuy_api_key = fields.Char(string="API Key Best Buy", config_parameter='tec_catalog_enricher.bestbuy_api_key')
+
+    use_pod = fields.Boolean(string="Habilitar Product Open Data", config_parameter='tec_catalog_enricher.use_pod', default=False)
+
+    # --- AI Provider Selection ---
+    ai_provider = fields.Selection(
+        selection=[
+            ('gemini', 'Google Gemini'),
+            ('openai', 'OpenAI'),
+        ],
+        string="Proveedor IA Activo",
+        config_parameter='tec_catalog_enricher.ai_provider',
+        default='gemini'
+    )
+
+    # --- Soft Data / Gemini ---
     use_gemini = fields.Boolean(string="Habilitar Gemini AI", config_parameter='tec_catalog_enricher.use_gemini', default=False)
     gemini_api_key = fields.Char(string="API Key Gemini", config_parameter='tec_catalog_enricher.gemini_api_key')
     gemini_model = fields.Selection(
         selection=[
-            ('gemini-1.5-flash', 'Gemini 1.5 Flash (Fast & Cheap)'),
-            ('gemini-2.0-flash', 'Gemini 2.0 Flash (Next Gen)'),
-            ('gemini-1.5-pro', 'Gemini 1.5 Pro (Powerful)'),
+            ('gemini-2.0-flash', 'Gemini 2.0 Flash 🚀 (Recomendado)'),
+            ('gemini-2.0-flash-exp', 'Gemini 2.0 Flash Experimental'),
+            ('gemini-1.5-flash', 'Gemini 1.5 Flash (Rápido)'),
         ],
-        string="Gemini Model",
+        string="Modelo Gemini",
         config_parameter='tec_catalog_enricher.gemini_model',
         default='gemini-2.0-flash'
+    )
+
+    # --- Soft Data / OpenAI ---
+    openai_api_key = fields.Char(string="API Key OpenAI", config_parameter='tec_catalog_enricher.openai_api_key')
+    openai_model = fields.Selection(
+        selection=[
+            ('gpt-4.1-nano', 'GPT-4.1 Nano ⚡ (Recomendado)'),
+            ('gpt-4o-mini', 'GPT-4o Mini'),
+            ('o4-mini', 'o4-mini (Razonamiento)'),
+        ],
+        string="Modelo OpenAI",
+        config_parameter='tec_catalog_enricher.openai_model',
+        default='gpt-4.1-nano'
     )
 
     # --- AI Enrichment Fine-Tuning ---
@@ -37,17 +75,31 @@ class ResConfigSettings(models.TransientModel):
     ai_custom_prompt = fields.Char(
         string="Master Prompt", 
         config_parameter='tec_catalog_enricher.ai_custom_prompt',
-        default="""Actúa como un Copywriter Experto en E-commerce de Hardware al estilo MercadoLibre Argentina.
-Insumos: {inputs}
+        default="""Actúas como un Ingeniero de Hardware y Senior Product Manager de e-commerce de tecnología en Argentina.
+Tu objetivo es analizar la información técnica cruda de un producto IT y devolver ÚNICAMENTE un objeto JSON válido, parseable directamente por json.loads(). NO uses bloques de código Markdown ni texto introductorio.
 
-TAREA:
-1. Genera un 'Friendly Name' SEO (Ej: 'Notebook HP 250 G9 i5 8GB SSD').
-2. Redacta una 'Marketing Description' (HTML) con Storytelling, Emojis y beneficios. Tono cercano.
-3. Redacta una 'Technical Description' (HTML) bien estructurada en tablas o listas técnicas limpias.
-4. Genera 5 'Usage Tags'.
+El JSON debe respetar esta estructura:
+{
+  "seo_name": "Nombre comercial optimizado para SEO",
+  "marketing_description": "<p>Descripción persuasiva en español argentino, enfocada en los beneficios B2C/B2B. Mínimo 2 párrafos. Usa etiquetas HTML básicas como <b> y <br>.</p>",
+  "technical_html": "<table class='table table-sm'>...</table> (Tabla HTML limpia con las especificaciones. Opcional si no hay datos técnicos estructurados)",
+  "attributes": {
+    "Clave Dinámica 1": "Valor Específico 1",
+    "Clave Dinámica 2": "Valor Específico 2"
+  }
+}
 
-Devuelve un JSON con claves: 'seo_name', 'marketing_html', 'technical_html', 'tags'.
-Do not use markdown code blocks. Just raw JSON."""
+REGLAS ESTRICTAS PARA LA EXTRACCIÓN DE ATRIBUTOS TÉCNICOS:
+1. Eres un experto: Tienes total libertad para crear las claves ("keys") en el objeto "attributes" que consideres vitales para ese producto (Ej: "Tipo de Panel", "Frecuencia de Actualización", "Generación de Procesador", "Factor de Forma").
+2. Precisión Quirúrgica en RAM y Almacenamiento: 
+   - NUNCA pongas solo la capacidad. 
+   - Para RAM, especifica tecnología y velocidad (Ej: "16GB DDR5 4800MHz" o "8GB LPDDR4x").
+   - Para almacenamiento, distingue la interfaz (Ej: "1TB M.2 NVMe PCIe 4.0" vs "512GB SSD SATA").
+3. Precisión en Pantallas: Incluye tecnología del panel, resolución y tasa de refresco si aplica.
+4. Normalización: Mantén los valores concisos (Faceted Search), pero completos.
+5. Cero Alucinaciones: Extrae entre 5 y 12 atributos. Si un dato vital no está, OMÍTELO. No inventes.
+
+Insumos: {inputs}"""
     )
 
     # MELI Settings (Migrated from tec_catalog_meli_categories)

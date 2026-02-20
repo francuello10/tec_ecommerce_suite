@@ -19,24 +19,6 @@ class DropshipBackendAir(models.Model):
     provider_code = fields.Selection(selection_add=[('air_csv', 'Air Computers (CSV/XLSX)')], ondelete={'air_csv': 'cascade'})
     url_endpoint_characteristics = fields.Char(string='URL Características (CSV)', help='URL del CSV de características de Air Computers')
 
-    def action_sync_air_brands(self):
-        """ Manual trigger for brands sync """
-        self.ensure_one()
-        _logger.info(f"{SUITE_LOG_PREFIX}Manual Brands Sync Triggered for {self.name}")
-        df = self._get_df_from_url(self.url_endpoint)
-        if df is not None:
-            self._sync_brands_impl(df)
-            return {
-                'type': 'ir.actions.client',
-                'tag': 'display_notification',
-                'params': {
-                    'title': _('Marcas Sincronizadas'),
-                    'message': _('Se han sincronizado las marcas exitosamente.'),
-                    'type': 'success',
-                    'sticky': False,
-                }
-            }
-        return False
 
     def action_sync_air_characteristics(self):
         """ Manual trigger for characteristics sync """
@@ -104,37 +86,49 @@ class DropshipBackendAir(models.Model):
             raise UserError(_("The CSV file must contain a 'CODPROV' column."))
 
         # Heavy lifting in separate cursor to avoid timeouts
+        import time
+        start_time = time.time()
+        
         backend_id = self.id
+        sync_counts = {'created': 0, 'updated': 0}
+        sync_error = None
+        
         with self.pool.cursor() as new_cr:
             new_env = api.Environment(new_cr, self.env.uid, self.env.context)
             backend = new_env['dropship.backend'].browse(backend_id)
             try:
-                counts = backend._sync_characteristics_impl(df)
+                sync_counts = backend._sync_characteristics_impl(df)
                 new_cr.commit()
-                # Create success log
-                self.env['tec.dropshipping.log'].create({
-                    'backend_id': backend_id,
-                    'sync_type': 'characteristics',
-                    'products_created': counts.get('created', 0),
-                    'products_updated': counts.get('updated', 0),
-                    'status': 'success',
-                    'log_summary': f"Sincronización de características completada. {counts.get('created')} creados, {counts.get('updated')} actualizados."
-                })
             except Exception as e:
                 _logger.error(f"{SUITE_LOG_PREFIX}Characteristics sync failed for backend {backend.name}: {e}")
+                sync_error = str(e)
                 try:
                     new_cr.rollback()
                 except Exception:
                     _logger.warning(f"{SUITE_LOG_PREFIX}Rollback failed (connection likely lost).")
-                # Create error log
-                self.env['tec.dropshipping.log'].create({
-                    'backend_id': backend_id,
-                    'sync_type': 'characteristics',
-                    'status': 'error',
-                    'error_details': str(e),
-                    'log_summary': "Error crítico durante la sincronización de características."
-                })
-                raise e
+
+        # Handle Logging & Timestamps in Main Environment
+        exec_time = round(time.time() - start_time, 2)
+        
+        if not sync_error:
+            self.last_sync = fields.Datetime.now()
+            self.env['tec.dropshipping.log'].create({
+                'backend_id': backend_id,
+                'sync_type': 'characteristics',
+                'products_created': sync_counts.get('created', 0),
+                'products_updated': sync_counts.get('updated', 0),
+                'status': 'success',
+                'log_summary': f"Sincronización de características completada en {exec_time}s. {sync_counts.get('created')} creados, {sync_counts.get('updated')} actualizados."
+            })
+        else:
+            self.env['tec.dropshipping.log'].create({
+                'backend_id': backend_id,
+                'sync_type': 'characteristics',
+                'status': 'error',
+                'error_details': sync_error,
+                'log_summary': f"Error crítico durante la sincronización de características en {exec_time}s: {sync_error[:100]}..."
+            })
+            raise UserError(_("La sincronización de características falló: %s") % sync_error)
         return True
 
     def _sync_characteristics_impl(self, df):
@@ -186,13 +180,7 @@ class DropshipBackendAir(models.Model):
                     if pn_match:
                         pn = pn_match.group(1).strip()
                     
-                    vals = {
-                        'air_description_raw': desc_raw,
-                        'description_sale': desc_raw or name,
-                    }
-                    if pn:
-                        vals['original_part_number'] = pn
-                    
+                    vals = {}
                     if not product_tmpl:
                         if only_existing:
                             _logger.debug(f"{SUITE_LOG_PREFIX}Skipping creation for {cod_prov} (only_sync_existing is active)")
@@ -200,6 +188,14 @@ class DropshipBackendAir(models.Model):
 
                         # CREATE Generic Product (0 price/stock)
                         created_count += 1
+                        
+                        vals = {
+                            'air_description_raw': desc_raw,
+                            'description_sale': desc_raw or name,
+                        }
+                        if pn:
+                            vals['original_part_number'] = pn
+
                         # Fallback for category
                         cat_id = self.env.ref('product.product_category_all', raise_if_not_found=False)
                         if not cat_id:
@@ -217,12 +213,23 @@ class DropshipBackendAir(models.Model):
                         existing_templates_map[cod_prov] = product_tmpl
                         _logger.info(f"{SUITE_LOG_PREFIX}Created generic product for {cod_prov}")
                     else:
-                        # Only update if description or PN changed
-                        if product_tmpl.air_description_raw != desc_raw or product_tmpl.original_part_number != pn:
+                        # UPDATE Existing: Only modify if changed AND empty (don't overwrite Icecat)
+                        if product_tmpl.air_description_raw != desc_raw:
+                            vals['air_description_raw'] = desc_raw
+                            
+                        if not product_tmpl.description_sale and desc_raw:
+                            vals['description_sale'] = desc_raw
+                        elif not product_tmpl.description_sale and name:
+                            vals['description_sale'] = name
+
+                        if pn and product_tmpl.original_part_number != pn:
+                            vals['original_part_number'] = pn
+
+                        if vals:
                             updated_count += 1
                             product_tmpl.write(vals)
                         else:
-                            _logger.debug(f"{SUITE_LOG_PREFIX}Skipping description update for {cod_prov} (No changes)")
+                            _logger.debug(f"{SUITE_LOG_PREFIX}Skipping description update for {cod_prov} (No changes or already customized)")
                     
                     # Handle IMAGES (Smarter Sync)
                     image_urls = []
@@ -352,6 +359,9 @@ class DropshipBackendAir(models.Model):
         return self._fetch_any_url_content(self.url_endpoint)
 
     def sync_catalog(self):
+        import time
+        start_time = time.time()
+        
         self.ensure_one()
         if self.provider_code != 'air_csv':
             return super().sync_catalog()
@@ -368,41 +378,211 @@ class DropshipBackendAir(models.Model):
         
         # Use separate cursor for long sync to avoid request timeouts
         backend_id = self.id
+        
+        sync_counts = {'created': 0, 'updated': 0, 'deleted': 0}
+        sync_error = None
+        
         with self.pool.cursor() as new_cr:
             new_env = api.Environment(new_cr, self.env.uid, self.env.context)
             backend = new_env['dropship.backend'].browse(backend_id)
             try:
                 # 2. Sync Catalog
-                counts = backend._sync_catalog_impl(df)
-                backend.last_sync = fields.Datetime.now()
+                sync_counts = backend._sync_catalog_impl(df)
                 new_cr.commit()
-                # Create success log
-                self.env['tec.dropshipping.log'].create({
-                    'backend_id': backend_id,
-                    'sync_type': 'catalog',
-                    'products_created': counts.get('created', 0),
-                    'products_updated': counts.get('updated', 0),
-                    'items_deleted': counts.get('deleted', 0),
-                    'status': 'success',
-                    'log_summary': f"Sincronización de catálogo completada. {counts.get('created')} creados, {counts.get('updated')} actualizados, {counts.get('deleted')} líneas de stock limpiadas."
-                })
             except Exception as e:
                 _logger.error(f"{SUITE_LOG_PREFIX}Catalog sync failed for backend {backend.name}: {e}")
+                sync_error = str(e)
                 try:
                     new_cr.rollback()
                 except Exception:
                     pass
-                # Create error log
-                self.env['tec.dropshipping.log'].create({
-                    'backend_id': backend_id,
-                    'sync_type': 'catalog',
-                    'status': 'error',
-                    'error_details': str(e),
-                    'log_summary': f"Error crítico durante la sincronización de catálogo: {str(e)[:100]}..."
-                })
-                raise e
+        
+        # 3. Handle Logging & Timestamps in Main Environment (Fixes Cursor Error)
+        exec_time = round(time.time() - start_time, 2)
+        
+        if not sync_error:
+            self.last_sync = fields.Datetime.now()
+            self.env['tec.dropshipping.log'].create({
+                'backend_id': backend_id,
+                'sync_type': 'catalog',
+                'products_created': sync_counts.get('created', 0),
+                'products_updated': sync_counts.get('updated', 0),
+                'items_deleted': sync_counts.get('deleted', 0),
+                'status': 'success',
+                'log_summary': f"Sincronización de catálogo completada en {exec_time}s. {sync_counts.get('created')} creados, {sync_counts.get('updated')} actualizados, {sync_counts.get('deleted')} limpiadas."
+            })
+        else:
+            self.env['tec.dropshipping.log'].create({
+                'backend_id': backend_id,
+                'sync_type': 'catalog',
+                'status': 'error',
+                'error_details': sync_error,
+                'log_summary': f"Error crítico durante la sincronización de catálogo en {exec_time}s: {sync_error[:100]}..."
+            })
+            raise UserError(_("La sincronización falló: %s") % sync_error)
 
         return True
+        
+    def action_sync_air_stock(self):
+        """ Ultra-fast manual trigger for stock and prices only. Bypasses brand, category, and creation. """
+        self.ensure_one()
+        self.sync_stock_only()
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Stock Rápido Sincronizado'),
+                'message': _('Se han actualizado los niveles de stock y precios de Air en background.'),
+                'type': 'success',
+                'sticky': False,
+            }
+        }
+
+    def sync_stock_only(self):
+        import time
+        start_time = time.time()
+        
+        self.ensure_one()
+        if self.provider_code != 'air_csv':
+            return
+            
+        _logger.info(f"{SUITE_LOG_PREFIX}Starting FAST Stock Sync for Backend: {self.name}")
+
+        df = self._get_df_from_url(self.url_endpoint)
+        if df is None:
+            return
+
+        backend_id = self.id
+        sync_counts = {'updated': 0}
+        sync_error = None
+        
+        with self.pool.cursor() as new_cr:
+            new_env = api.Environment(new_cr, self.env.uid, self.env.context)
+            backend = new_env['dropship.backend'].browse(backend_id)
+            try:
+                sync_counts = backend._sync_stock_only_impl(df)
+                new_cr.commit()
+            except Exception as e:
+                _logger.error(f"{SUITE_LOG_PREFIX}FAST Stock sync failed: {e}")
+                sync_error = str(e)
+                try:
+                    new_cr.rollback()
+                except Exception:
+                    pass
+        
+        exec_time = round(time.time() - start_time, 2)
+        
+        if not sync_error:
+            self.last_sync = fields.Datetime.now()
+            self.env['tec.dropshipping.log'].create({
+                'backend_id': backend_id,
+                'sync_type': 'catalog', # Reuse catalog logic or create new type 'stock'
+                'products_updated': sync_counts.get('updated', 0),
+                'status': 'success',
+                'log_summary': f"Sincronización RÁPIDA de Stock completada en {exec_time}s. {sync_counts.get('updated')} productos actualizados."
+            })
+        else:
+            self.env['tec.dropshipping.log'].create({
+                'backend_id': backend_id,
+                'sync_type': 'catalog',
+                'status': 'error',
+                'error_details': sync_error,
+                'log_summary': f"Error crítico en Stock Sync rápido en {exec_time}s: {sync_error[:100]}..."
+            })
+            raise UserError(_("La sincronización rápida falló: %s") % sync_error)
+            
+        return True
+
+    def _sync_stock_only_impl(self, df):
+        Product = self.env['product.product']
+        Location = self.env['dropship.location']
+        col_map = {str(c).upper(): c for c in df.columns}
+        
+        air_partner = self.env['res.partner'].search([('name', '=', 'Air Computers')], limit=1)
+        locations = self.location_ids
+
+        # 1. Bulk Search Existing Products using CODPROV
+        df = df[df['CODPROV'].notnull()]
+        all_codprovs = df['CODPROV'].astype(str).str.strip().unique().tolist()
+        
+        existing_products_map = {}
+        chunk_size = 1000
+        for i in range(0, len(all_codprovs), chunk_size):
+            chunk = all_codprovs[i:i + chunk_size]
+            products = Product.search([('default_code', 'in', chunk)])
+            for p in products:
+                existing_products_map[p.default_code] = p
+
+        # 2. Date Extraction (col M / FECHA)
+        global_last_update = False
+        date_col_actual = col_map.get('FECHA')
+        if not date_col_actual and len(df.columns) > 12:
+            date_col_actual = df.columns[12]
+
+        if date_col_actual:
+            try:
+                valid_dates = df[date_col_actual].dropna()
+                if not valid_dates.empty:
+                    raw_date = valid_dates.iloc[0]
+                    if isinstance(raw_date, (datetime, pd.Timestamp)):
+                        global_last_update = raw_date
+                    else:
+                        global_last_update = pd.to_datetime(str(raw_date).strip(), dayfirst=True, errors='coerce')
+                    if pd.isnull(global_last_update): global_last_update = False
+                    elif hasattr(global_last_update, 'to_pydatetime'): global_last_update = global_last_update.to_pydatetime()
+            except Exception as e:
+                 pass
+
+        updated_count = 0
+        
+        # 3. Process Rows (Only Updates)
+        for index, row in df.iterrows():
+            cod_prov = self._get_row_str(row, 'CODPROV', col_map)
+            product = existing_products_map.get(cod_prov)
+            
+            # If product doesn't exist, SKIP! That's the point of stock-only.
+            if not product:
+                continue
+
+            try:
+                with self.env.cr.savepoint():
+                    raw_cost = self._get_row_val(row, 'COSTO+', col_map) or self._get_row_val(row, 'COSTO', col_map)
+                    
+                    # A. Update base price constraints
+                    margin = self.global_margin or 30.0
+                    usd_sale_price_net = raw_cost * (1 + margin / 100.0)
+                    product.write({
+                        'x_usd_price': usd_sale_price_net,
+                        'x_usd_cost': raw_cost,
+                    })
+                    
+                    # B. Update Stock Levels
+                    seq = 1
+                    for loc in locations:
+                        target_col = loc.import_column or loc.name
+                        qty = 0.0
+                        if target_col in ['BS AS', 'BSAS', 'BUENOS AIRES']:
+                             qty = self._get_row_val(row, target_col, col_map)
+                             if qty <= 0: qty = self._get_row_val(row, 'LUG', col_map)
+                        else:
+                             qty = self._get_row_val(row, target_col, col_map)
+
+                        self._update_supplier_info(product, loc, raw_cost, qty, seq, product_code=cod_prov, last_update=global_last_update)
+                        seq += 1
+                        
+                    # C. Check valid publication bounds
+                    self._update_publication_status(product)
+                    updated_count += 1
+                    
+            except Exception as row_error:
+                _logger.error(f"{SUITE_LOG_PREFIX}FAST Sync error row {index} (CodProv: {cod_prov}): {row_error}")
+                continue
+
+            if index % 200 == 0:
+                self.env.cr.commit()
+                self.env.invalidate_all()
+
+        return {'updated': updated_count}
 
     def _sync_brands_impl(self, df):
         """ Extract and create unique brands from the dataframe """
@@ -429,55 +609,50 @@ class DropshipBackendAir(models.Model):
             return
         
         # Bulk check existing
-        existing_brands = Brand.search([('name', 'in', valid_brands)])
-        existing_names = {b.name.lower(): b.id for b in existing_brands}
+        # This bulk check is less useful with the new get_normalized_brand logic,
+        # but we can still optimize it if we want. For now, we will just use the get_normalized_brand mechanism.
         
-        to_create = []
         for name in valid_brands:
-            if name.lower() not in existing_names:
-                to_create.append({'name': name})
-                existing_names[name.lower()] = True # Placeholder to avoid dupes in loop
-        
-        if to_create:
-            Brand.create(to_create)
-            count = len(to_create)
-            _logger.info(f"Created {count} new brands from CSV.")
+            Brand.get_normalized_brand(name, auto_create)
             
-            # Create success log for brands
-            self.env['tec.dropshipping.log'].create({
-                'backend_id': self.id,
-                'sync_type': 'brands', # We might need to add this selection to the model or use 'other'
-                'status': 'success',
-                'log_summary': f"Sincronización de marcas completada. {count} nuevas marcas creadas."
-            })
-        else:
-             _logger.info("No new brands found to create.")
-             # Optional: Log that no brands were created? Or too noisy? 
-             # User asked for "sync marcas tambien debe quedar logeado".
-             self.env['tec.dropshipping.log'].create({
-                'backend_id': self.id,
-                'sync_type': 'brands', # We might need to add this selection to the model or use 'other'
-                'status': 'success',
-                'log_summary': f"Sincronización de marcas verificada. No se encontraron nuevas marcas."
-            })
+        count = len(valid_brands)
+        _logger.info(f"Processed {count} unique brands from CSV through normalization.")
+        
+        # We don't distinguish 'new' vs 'existing' exactly here as get_normalized handles it,
+        # but we can keep the success log intact.
+        self.env['tec.dropshipping.log'].create({
+            'backend_id': self.id,
+            'sync_type': 'brands', 
+            'status': 'success',
+            'log_summary': f"Sincronización de marcas completada. {count} marcas procesadas y normalizadas."
+        })
+
 
 
 
     # Old _fetch_file_content removed, using consolidated _fetch_any_url_content instead.
 
-    def _get_or_create_category(self, row, col_map=None):
+    def _get_or_create_category(self, row, col_map=None, cat_cache=None):
+        if cat_cache is None: cat_cache = {}
         Category = self.env['product.category']
-        rubro_name = self._get_row_str(row, 'RUBRO', col_map).strip() or 'Dropship'
+        raw_rubro = self._get_row_str(row, 'RUBRO', col_map).strip()
         
+        # Clean up legacy prefixes if they come embedded in the string via Regex
+        rubro_name = re.sub(r'^(Dropship\s*(\/)?\s*(Air)?\s*\/\s*|Air Computers\s*\/\s*)', '', raw_rubro, flags=re.IGNORECASE)
+        rubro_name = rubro_name.strip() or 'Air Computers (Sin Rubro)'
+        
+        if rubro_name in cat_cache:
+            return cat_cache[rubro_name]
+            
         category = Category.search([('name', '=', rubro_name)], limit=1)
         if not category:
-            parent_cat = Category.search([('name', '=', 'Dropship/Air')], limit=1)
-            if not parent_cat:
-                parent_cat = Category.create({'name': 'Dropship/Air'})
-            category = Category.create({'name': rubro_name, 'parent_id': parent_cat.id})
+            category = Category.create({'name': rubro_name})
+            
+        cat_cache[rubro_name] = category
         return category
 
-    def _create_product_from_row(self, row, cod_prov, tax_map, col_map):
+
+    def _create_product_from_row(self, row, cod_prov, tax_map, col_map, cat_cache=None, brand_cache=None):
         Product = self.env['product.product']
         
         # Clean PN before using
@@ -486,20 +661,7 @@ class DropshipBackendAir(models.Model):
             part_number = self._get_row_str(row, 'ORIGINAL_PART_NUMBER', col_map)
 
         # 1. Category
-        category = self._get_or_create_category(row, col_map)
-
-        # 2. Brand (Search/Create as safety, but should be there)
-        marca_name = str(row.get('MARCA', '')).strip()
-        brand = False
-        if marca_name and marca_name.lower() not in ['nan', 'none', '', '0']:
-            Brand = self.env['tec.catalog.brand']
-            brand = Brand.search([('name', '=ilike', marca_name)], limit=1)
-            # Normal creation is now handled by _sync_brands_impl in bulk at start
-            if not brand:
-                auto_create = self.env['ir.config_parameter'].sudo().get_param('tec_dropshipping_air.auto_create_brands', 'True') == 'True'
-                if auto_create:
-                    brand = Brand.create({'name': marca_name})
-                    _logger.info(f"Auto-created brand during product creation: {marca_name}")
+        category = self._get_or_create_category(row, col_map, cat_cache)
         
         vals = {
             'name': str(row.get('DESCRIPCIÓN', 'New Product')).strip(),
@@ -507,7 +669,6 @@ class DropshipBackendAir(models.Model):
             'original_part_number': part_number,
             'type': 'consu',
             'categ_id': category.id,
-            'product_brand_id': brand.id if brand else False,
             'description_sale': f"PN: {part_number}\nCod. Prov: {cod_prov}", 
         }
         
@@ -527,11 +688,12 @@ class DropshipBackendAir(models.Model):
         product = Product.create(vals)
         
         # Calculate Price and set additional info immediately
-        self._update_product_info(product, row, col_map, tax_map)
+        self._update_product_info(product, row, col_map, tax_map, cat_cache, brand_cache)
         
         return product
 
-    def _update_product_info(self, product, row, col_map, tax_map=None):
+    def _update_product_info(self, product, row, col_map, tax_map=None, cat_cache=None, brand_cache=None):
+        if brand_cache is None: brand_cache = {}
         # 1. Basic Info
         # Source of truth is USD
         # COSTO+ is likely the Net Cost in USD from Air Computers
@@ -569,7 +731,7 @@ class DropshipBackendAir(models.Model):
                 purchase_tax_id, sale_tax_id = tax_map[iva_val]
 
         # Update category (Rubro)
-        category = self._get_or_create_category(row, col_map)
+        category = self._get_or_create_category(row, col_map, cat_cache)
 
         vals = {
             'x_usd_price': usd_sale_price_net,
@@ -590,16 +752,15 @@ class DropshipBackendAir(models.Model):
         # 2. Brand
         marca_name = self._get_row_str(row, 'MARCA', col_map)
         if marca_name:
-            Brand = self.env['tec.catalog.brand']
-            brand = Brand.search([('name', '=ilike', marca_name)], limit=1)
-            if not brand:
+            if marca_name in brand_cache:
+                brand = brand_cache[marca_name]
+            else:
+                Brand = self.env['tec.catalog.brand']
                 auto_create = self.env['ir.config_parameter'].sudo().get_param('tec_dropshipping_air.auto_create_brands', 'True') == 'True'
-                if auto_create:
-                    brand = Brand.create({'name': marca_name})
-                    _logger.info(f"Auto-created brand during update: {marca_name}")
+                brand = Brand.get_normalized_brand(marca_name, auto_create=auto_create)
+                brand_cache[marca_name] = brand
             
             if brand:
-                # _logger.debug(f"Assigning brand {brand.name} to {product.default_code}")
                 vals['product_brand_id'] = brand.id
             else:
                 _logger.warning(f"Brand '{marca_name}' NOT FOUND and auto_create is OFF.")
@@ -632,9 +793,15 @@ class DropshipBackendAir(models.Model):
         Location = self.env['dropship.location']
         col_map = {str(c).upper(): c for c in df.columns}
         _logger.info(f"Syncing Air Catalog. Available CSV Columns: {list(col_map.keys())}")
-        
-        tax_map = {m.csv_value: (m.tax_id.id, m.sale_tax_id.id) for m in self.tax_mapping_ids}
-        
+        # Custom Argentinian Localized Tax Map (Hardcoded to 21% and 10.5%)
+        tax_map = {}
+        for amount in [21.0, 10.5]:
+            # Busco IVA en la base de datos para la contabilidad activa
+            sale_tax = self.env['account.tax'].search([('amount', '=', amount), ('type_tax_use', '=', 'sale')], limit=1)
+            purch_tax = self.env['account.tax'].search([('amount', '=', amount), ('type_tax_use', '=', 'purchase')], limit=1)
+            
+            amount_str = "21" if amount == 21.0 else "10.5"
+            tax_map[amount_str] = (purch_tax.id if purch_tax else False, sale_tax.id if sale_tax else False)
         # 0. Get specific Air Computers Partner
         air_partner = self.env['res.partner'].search([('name', '=', 'Air Computers')], limit=1)
         if not air_partner:
@@ -744,6 +911,9 @@ class DropshipBackendAir(models.Model):
         created_count = 0
         updated_count = 0
         
+        cat_cache = {}
+        brand_cache = {}
+        
         # 4. Process Rows
         for index, row in df.iterrows():
             cod_prov = self._get_row_str(row, 'CODPROV', col_map)
@@ -755,11 +925,11 @@ class DropshipBackendAir(models.Model):
                     product = existing_products_map.get(cod_prov)
                     if not product:
                         created_count += 1
-                        product = self._create_product_from_row(row, cod_prov, tax_map, col_map)
+                        product = self._create_product_from_row(row, cod_prov, tax_map, col_map, cat_cache, brand_cache)
                         existing_products_map[cod_prov] = product
                     else:
                         updated_count += 1
-                        self._update_product_info(product, row, col_map, tax_map)
+                        self._update_product_info(product, row, col_map, tax_map, cat_cache, brand_cache)
 
                     # --- MELI Category Mapping ---
                     if 'tec.catalog.category.mapping' in self.env:

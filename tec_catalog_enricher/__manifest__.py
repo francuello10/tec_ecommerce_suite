@@ -17,6 +17,7 @@
     },
     'data': [
         'security/ir.model.access.csv',
+        'data/ir_cron.xml',
         'views/res_config_settings_view.xml',
         'views/product_template_views.xml',
         'views/product_public_category_view.xml',

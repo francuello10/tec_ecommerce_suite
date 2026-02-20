@@ -54,4 +54,35 @@ def enrich_product(product, mpn):
         except Exception as e:
              _logger.error(f"Google PDF Search Failed: {e}")
              
+    # 3. Web Text Fallback (Organic AI Snippets)
+    use_google_text = product.env['ir.config_parameter'].sudo().get_param('tec_catalog_enricher.use_google', 'False') == 'True'
+    if use_google_text and not product.tec_enriched_description:
+        query_text = f"{product.product_brand_id.name} {mpn} specifications features"
+        url_text = f"https://www.googleapis.com/customsearch/v1?q={query_text}&cx={cx}&key={api_key}&num=3"
+        try:
+            res_text = requests.get(url_text, timeout=10).json()
+            if 'items' in res_text:
+                snippets = []
+                for item in res_text['items']:
+                    title = item.get('title', '')
+                    snippet = item.get('snippet', '')
+                    if snippet:
+                        snippets.append(f"<li style='margin-bottom: 8px;'><b>{title}</b>: {snippet}</li>")
+                
+                if snippets:
+                    html_content = f"""
+                    <div class="tec-google-ai-fallback" style="margin-top: 30px; border-top: 2px dashed #4285F4; padding-top: 20px;">
+                        <div style="color: #666; font-size: 0.9em; margin-bottom: 15px;">
+                             <i>Fuente: AI Web Search Fallback (Google)</i>
+                        </div>
+                        <ul style="font-size: 13px; color: #444;">
+                            {''.join(snippets)}
+                        </ul>
+                    </div>
+                    """
+                    product.tec_enriched_description = html_content
+                    _logger.info(f"Google: Added Web Text Fallback for {mpn}")
+        except Exception as e:
+            _logger.error(f"Google Text Search Failed: {e}")
+
     return True

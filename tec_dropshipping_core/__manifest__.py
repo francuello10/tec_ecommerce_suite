@@ -1,6 +1,6 @@
 {
     'name': 'Tec Dropshipping Core',
-    'version': '2.0',
+    'version': '2.1',
     'category': 'Operations/Inventory',
     'summary': 'The Dropshipping Framework: Multi-Location, Multi-Currency & Mappings.',
     'description': """

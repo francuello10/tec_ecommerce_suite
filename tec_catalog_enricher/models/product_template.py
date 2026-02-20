@@ -1,5 +1,5 @@
 from odoo import api, fields, models
-from .enrichment_engines import lenovo_engine, icecat_engine, google_engine, youtube_engine, ai_engine
+from .enrichment_engines import lenovo_engine, icecat_engine, bestbuy_engine, open_product_data_engine, google_engine, youtube_engine, ai_engine
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -67,12 +67,36 @@ class ProductTemplate(models.Model):
                             _logger.error(f"Icecat Engine Failed: {e}")
                             product.message_post(body=f"❌ Icecat Error: {str(e)}")
 
-                    # 3. Google Fallback
+                    # 3. Best Buy API
+                    if not success_sources and ICP.get_param('tec_catalog_enricher.use_bestbuy'):
+                        try:
+                            if bestbuy_engine.enrich_product(product, mpn):
+                                success_sources.append('bestbuy')
+                                self._log_enrichment(product, 'success', 'Best Buy', 'Datos técnicos e imágenes actualizados.')
+                            else:
+                                 product.message_post(body="ℹ️ Best Buy: Producto no encontrado.")
+                        except Exception as e:
+                            _logger.error(f"BestBuy Engine Failed: {e}")
+                            product.message_post(body=f"❌ BestBuy Error: {str(e)}")
+
+                    # 4. Product Open Data (POD)
+                    if not success_sources and ICP.get_param('tec_catalog_enricher.use_pod'):
+                        try:
+                            if open_product_data_engine.enrich_product(product, mpn, ean=product.barcode):
+                                success_sources.append('pod')
+                                self._log_enrichment(product, 'success', 'Open Product Data', 'Información encontrada en base abierta.')
+                            else:
+                                 product.message_post(body="ℹ️ Product Open Data: Producto no encontrado.")
+                        except Exception as e:
+                            _logger.error(f"POD Engine Failed: {e}")
+                            product.message_post(body=f"❌ POD Error: {str(e)}")
+
+                    # 5. Google Fallback (AI Web Search)
                     if not success_sources and ICP.get_param('tec_catalog_enricher.use_google'):
                         try:
                             if google_engine.enrich_product(product, mpn):
                                 success_sources.append('google')
-                                self._log_enrichment(product, 'success', 'Google', 'Datos básicos obtenidos.')
+                                self._log_enrichment(product, 'success', 'Google', 'Datos básicos (y texto AI) obtenidos.')
                             else:
                                 product.message_post(body="ℹ️ Google Fallback: Sin resultados útiles.")
                         except Exception as e:
@@ -168,13 +192,51 @@ class ProductTemplate(models.Model):
             }
         }
 
+    @api.model
+    def _cron_mass_enrich_catalog(self, limit=50):
+        """ Task for automated background mass enrichment of High-Ticket categories """
+        _logger.info(f"{SUITE_LOG_PREFIX}Running Mass Catalog Enrichment Cron (limit: {limit})...")
+        
+        # We only want to auto-process products that:
+        # 1. Are active
+        # 2. Have actual MPN or Supplier SKU to search for
+        # 3. Are pending enrichment
+        # 4. Have some stock (priority) or as configured. 
+        # (Keeping it simple: just need MPN and 'pending' enrichment state)
+        domain = [
+            ('enrichment_state', 'in', ['pending', False]),
+            ('type', '=', 'product'),
+            '|', ('original_part_number', '!=', False), ('default_code', '!=', False)
+        ]
+        
+        # Priority High-Ticket categories names
+        high_ticket_names = [
+            'Notebooks', 'PCs', 'Computadoras', 'Mini PCs', 'Servidores', 
+            'Monitores', 'Impresoras', 'Periféricos Gamers', 'Videovigilancia'
+        ]
+        
+        # Try to find these categories first
+        categories = self.env['product.category'].search([('name', 'in', high_ticket_names)])
+        if categories:
+             domain.append(('categ_id', 'child_of', categories.ids))
+             
+        products = self.search(domain, limit=limit)
+        
+        if not products:
+             _logger.info(f"{SUITE_LOG_PREFIX}No pending priority products found for auto-enrichment.")
+             return
+
+        _logger.info(f"{SUITE_LOG_PREFIX}Found {len(products)} pending products. Starting process...")
+        
+        # Chain both actions. The methods already have robust savepoints to prevent complete rollback.
+        products.action_fetch_technical_data()
+        products.action_generate_marketing_content()
+        
+        _logger.info(f"{SUITE_LOG_PREFIX}Mass Catalog Enrichment Cron completed.")
+
     def _cron_notify_price_drops(self):
         """ Task for daily price drop notifications """
         _logger.info(f"{SUITE_LOG_PREFIX}Running Price Drop Notification Cron")
-        # Logic to be implemented: 
-        # 1. Identify products with price drops
-        # 2. Find carts with these products
-        # 3. Send email notifications
         pass
 
     def _log_enrichment(self, product, level, source, message):

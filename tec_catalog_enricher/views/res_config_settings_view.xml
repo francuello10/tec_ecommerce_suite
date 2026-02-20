@@ -12,7 +12,9 @@
                             <div class="col-12 col-lg-6">
                                 <setting string="Icecat" help="Especificaciones técnicas oficiales.">
                                     <field name="use_icecat"/>
-                                    <div class="content-group" invisible="not use_icecat">
+                                    <field name="icecat_auth_method" widget="radio" class="mb-3" invisible="not use_icecat"/>
+
+                                    <div class="content-group" invisible="not use_icecat or icecat_auth_method == 'token'">
                                         <div class="row mt16">
                                             <label for="icecat_username" string="Usuario" class="col-lg-4 o_light_label"/>
                                             <field name="icecat_username" class="oe_inline"/>
@@ -22,6 +24,17 @@
                                             <field name="icecat_password" password="True" class="oe_inline"/>
                                         </div>
                                     </div>
+
+                                    <div class="content-group" invisible="not use_icecat or icecat_auth_method == 'basic'">
+                                        <div class="row mt16">
+                                            <label for="icecat_api_token" string="API Token" class="col-lg-4 o_light_label"/>
+                                            <field name="icecat_api_token" class="oe_inline"/>
+                                        </div>
+                                        <div class="row">
+                                            <label for="icecat_content_token" string="Content Token" class="col-lg-4 o_light_label"/>
+                                            <field name="icecat_content_token" password="True" class="oe_inline"/>
+                                        </div>
+                                     </div>
                                 </setting>
                             </div>
                             <div class="col-12 col-lg-6">
@@ -40,10 +53,39 @@
                                 </setting>
                             </div>
                         </div>
+                        <div class="row mt16">
+                            <div class="col-12 col-lg-6">
+                                <setting string="Best Buy API" help="Búsqueda de productos por MPN/UPC.">
+                                    <field name="use_bestbuy"/>
+                                    <div class="content-group" invisible="not use_bestbuy">
+                                        <div class="row mt16">
+                                            <label for="bestbuy_api_key" string="API Key" class="col-lg-4 o_light_label"/>
+                                            <field name="bestbuy_api_key" password="True" class="oe_inline"/>
+                                        </div>
+                                    </div>
+                                </setting>
+                            </div>
+                            <div class="col-12 col-lg-6">
+                                <setting string="Product Open Data" help="Búsqueda en base de datos abierta.">
+                                    <field name="use_pod"/>
+                                </setting>
+                            </div>
+                        </div>
                     </setting>
 
                     <setting id="enricher_soft_data" string="Inteligencia Artificial &amp; Social" help="Generación de contenido y social proof.">
+                        <!-- Proveedor por defecto -->
                         <div class="row">
+                            <div class="col-12">
+                                <setting string="Proveedor IA Activo" help="Seleccioná cuál IA se usará para enriquecer productos.">
+                                    <div class="content-group">
+                                        <field name="ai_provider" widget="radio" class="oe_inline"/>
+                                    </div>
+                                </setting>
+                            </div>
+                        </div>
+                        <!-- Keys y Modelos -->
+                        <div class="row mt16">
                             <div class="col-12 col-lg-6">
                                 <setting string="Google Gemini AI" help="Cerebro para redacción SEO.">
                                     <field name="use_gemini"/>
@@ -54,11 +96,28 @@
                                         </div>
                                         <div class="row">
                                             <label for="gemini_model" string="Modelo" class="col-lg-4 o_light_label"/>
-                                            <field name="gemini_model" class="oe_inline" placeholder="gemini-1.5-flash"/>
+                                            <field name="gemini_model" class="oe_inline"/>
                                         </div>
                                     </div>
                                 </setting>
                             </div>
+                            <div class="col-12 col-lg-6">
+                                <setting string="OpenAI (GPT)" help="Alternativa a Gemini. Compatible con GPT-4.1 Nano y o4-mini.">
+                                    <div class="content-group">
+                                        <div class="row mt8">
+                                            <label for="openai_api_key" string="API Key" class="col-lg-4 o_light_label"/>
+                                            <field name="openai_api_key" password="True" class="oe_inline"/>
+                                        </div>
+                                        <div class="row">
+                                            <label for="openai_model" string="Modelo" class="col-lg-4 o_light_label"/>
+                                            <field name="openai_model" class="oe_inline"/>
+                                        </div>
+                                    </div>
+                                </setting>
+                            </div>
+                        </div>
+                        <!-- YouTube -->
+                        <div class="row mt16">
                             <div class="col-12 col-lg-6">
                                 <setting string="YouTube Social Proof" help="Búsqueda de video-reviews.">
                                     <field name="use_youtube"/>
@@ -72,7 +131,7 @@
                             </div>
                         </div>
 
-                        <!-- Advanced AI Configuration (Premium Section) -->
+                        <!-- Advanced AI Configuration -->
                         <div class="row mt32" invisible="not use_gemini">
                             <div class="col-12">
                                 <div class="o_horizontal_separator mt16 mb16">Configuración Avanzada de IA</div>

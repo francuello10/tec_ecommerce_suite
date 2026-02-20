@@ -10,12 +10,6 @@
               action="action_dropship_backend" 
               sequence="10"/>
 
-    <menuitem id="menu_dropship_brands"
-              name="Marcas"
-              parent="menu_dropship_config"
-              action="tec_catalog_brand_action"
-              sequence="20"/>
-
     <menuitem id="menu_tec_suite_config"
               name="Tec Suite Settings"
               parent="menu_dropship_config"
