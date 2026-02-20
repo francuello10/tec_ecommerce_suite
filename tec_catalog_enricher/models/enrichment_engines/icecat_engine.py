@@ -176,12 +176,21 @@ def _enrich_product_json(product, mpn, api_token, content_token):
         if gallery_images_data:
             existing_count = len(product.tec_product_image_ids)
             for i, (name, data) in enumerate(gallery_images_data):
+                # Backend Gallery
                 product.env['tec.product.image'].create({
                     'product_tmpl_id': product.id,
                     'name': name,
                     'sequence': 50 + existing_count + i,
                     'image_1920': data
                 })
+                # Website Gallery (Odoo Native)
+                if hasattr(product, 'product_template_image_ids'):
+                    product.env['product.image'].create({
+                        'product_tmpl_id': product.id,
+                        'name': name,
+                        'sequence': 50 + existing_count + i,
+                        'image_1920': data
+                    })
         
         return True
 
@@ -292,12 +301,21 @@ def _enrich_product_xml(product, mpn, username, password):
         if gallery_images_data:
             existing_count = len(product.tec_product_image_ids)
             for i, (name, data) in enumerate(gallery_images_data):
+                # Backend Gallery
                 product.env['tec.product.image'].create({
                     'product_tmpl_id': product.id,
                     'name': name,
                     'sequence': 50 + existing_count + i,
                     'image_1920': data
                 })
+                # Website Gallery (Odoo Native)
+                if hasattr(product, 'product_template_image_ids'):
+                    product.env['product.image'].create({
+                        'product_tmpl_id': product.id,
+                        'name': name,
+                        'sequence': 50 + existing_count + i,
+                        'image_1920': data
+                    })
 
         return True
 

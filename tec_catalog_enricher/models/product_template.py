@@ -40,6 +40,8 @@ class ProductTemplate(models.Model):
                     continue
 
                 success_sources = []
+                failed_sources = []
+                error_sources = []
 
                 # Use a specific savepoint per product so one failure doesn't roll back the whole batch
                 with self.env.cr.savepoint():
@@ -47,76 +49,84 @@ class ProductTemplate(models.Model):
                     if ICP.get_param('tec_catalog_enricher.use_lenovo_psref', 'True') == 'True' and product.product_brand_id.name and 'lenovo' in product.product_brand_id.name.lower():
                         try:
                             if lenovo_engine.enrich_product(product, mpn):
-                                success_sources.append('lenovo')
+                                success_sources.append('Lenovo PSREF')
                                 self._log_enrichment(product, 'success', 'Lenovo PSREF', 'Datos técnicos e imágenes actualizados.')
                             else:
-                                product.message_post(body="ℹ️ Lenovo PSREF: Producto no encontrado en base oficial.")
+                                failed_sources.append('Lenovo PSREF')
                         except Exception as e:
                             _logger.error(f"Lenovo Engine Failed: {e}")
-                            product.message_post(body=f"❌ Lenovo PSREF Error: {str(e)}")
+                            error_sources.append(f'Lenovo PSREF ({str(e)[:30]})')
                     
                     # 2. Icecat
                     if ICP.get_param('tec_catalog_enricher.use_icecat'):
                         try:
                             if icecat_engine.enrich_product(product, mpn):
-                                success_sources.append('icecat')
+                                success_sources.append('Icecat')
                                 self._log_enrichment(product, 'success', 'Icecat', 'Datos técnicos e imágenes actualizados.')
                             else:
-                                 product.message_post(body="ℹ️ Icecat: Producto no encontrado en catálogo.")
+                                failed_sources.append('Icecat')
                         except Exception as e:
                             _logger.error(f"Icecat Engine Failed: {e}")
-                            product.message_post(body=f"❌ Icecat Error: {str(e)}")
+                            error_sources.append(f'Icecat ({str(e)[:30]})')
 
                     # 3. Best Buy API
                     if not success_sources and ICP.get_param('tec_catalog_enricher.use_bestbuy'):
                         try:
                             if bestbuy_engine.enrich_product(product, mpn):
-                                success_sources.append('bestbuy')
+                                success_sources.append('Best Buy')
                                 self._log_enrichment(product, 'success', 'Best Buy', 'Datos técnicos e imágenes actualizados.')
                             else:
-                                 product.message_post(body="ℹ️ Best Buy: Producto no encontrado.")
+                                failed_sources.append('Best Buy')
                         except Exception as e:
                             _logger.error(f"BestBuy Engine Failed: {e}")
-                            product.message_post(body=f"❌ BestBuy Error: {str(e)}")
+                            error_sources.append(f'Best Buy ({str(e)[:30]})')
 
                     # 4. Product Open Data (POD)
                     if not success_sources and ICP.get_param('tec_catalog_enricher.use_pod'):
                         try:
                             if open_product_data_engine.enrich_product(product, mpn, ean=product.barcode):
-                                success_sources.append('pod')
+                                success_sources.append('Product Open Data')
                                 self._log_enrichment(product, 'success', 'Open Product Data', 'Información encontrada en base abierta.')
                             else:
-                                 product.message_post(body="ℹ️ Product Open Data: Producto no encontrado.")
+                                failed_sources.append('Product Open Data')
                         except Exception as e:
                             _logger.error(f"POD Engine Failed: {e}")
-                            product.message_post(body=f"❌ POD Error: {str(e)}")
+                            error_sources.append(f'Product Open Data ({str(e)[:30]})')
 
                     # 5. Google Fallback (AI Web Search)
                     if not success_sources and ICP.get_param('tec_catalog_enricher.use_google'):
                         try:
                             if google_engine.enrich_product(product, mpn):
-                                success_sources.append('google')
+                                success_sources.append('Google AI Search')
                                 self._log_enrichment(product, 'success', 'Google', 'Datos básicos (y texto AI) obtenidos.')
                             else:
-                                product.message_post(body="ℹ️ Google Fallback: Sin resultados útiles.")
+                                failed_sources.append('Google AI Search')
                         except Exception as e:
                             _logger.error(f"Google Engine Failed: {e}")
-                            product.message_post(body=f"❌ Google Error: {str(e)}")
+                            error_sources.append(f'Google AI Search ({str(e)[:30]})')
 
                     # Update final state & Logs
                     if success_sources:
                         success_count += 1
                         product.enrichment_state = 'tech_done'
-                        product.enrichment_source = 'mixed' if len(success_sources) > 1 else success_sources[0]
+                        product.enrichment_source = 'mixed' if len(success_sources) > 1 else success_sources[0].lower()
                         product.force_enrichment = False
                         
-                        sources_label = ", ".join([s.capitalize() for s in success_sources])
-                        body = f"✅ Enriquecimiento Exitoso: Se obtuvo información técnica desde: {sources_label}."
+                        sources_label = ", ".join(success_sources)
+                        failed_label = ", ".join(failed_sources) if failed_sources else 'Ninguna'
+                        
+                        body = f"📥 Ficha Técnica Obtenida<br/>✅ Fuentes Exitosas: {sources_label}<br/>ℹ️ Omitidas / Sin datos: {failed_label}"
+                        if error_sources:
+                            body += f'<br/>❌ Errores técnicos: {", ".join(error_sources)}'
                         product.message_post(body=body)
                     else:
                         msg = "No se encontró información técnica en ninguna de las fuentes consultadas."
                         self._log_enrichment(product, 'warning', 'Sincronizador', msg)
-                        body = f"⚠️ Sin Resultados: Se consultaron todas las fuentes pero no se hallaron datos para el PN: {mpn}."
+                        
+                        failed_label = ", ".join(failed_sources) if failed_sources else "ninguna (deshabilitadas)"
+                        body = f"⚠️ Sin Resultados Técnicos<br/>Se buscaron datos en {failed_label} pero no se obtuvieron resultados para el PN {mpn}."
+                        if error_sources:
+                            body += f'<br/>❌ Errores técnicos: {", ".join(error_sources)}'
                         product.message_post(body=body)
 
                 # IMPORTANT: In mass actions, commit after each product so:
@@ -152,16 +162,26 @@ class ProductTemplate(models.Model):
             try:
                 with self.env.cr.savepoint():
                     state = 'tech_done'
+                    logs = []
                     
                     # 1. YouTube Social Proof
                     if ICP.get_param('tec_catalog_enricher.use_youtube'):
                         if youtube_engine.enrich_video(product):
                             state = 'marketing_done'
+                            logs.append("🎬 YouTube: Video y tags obtenidos exitosamente.")
 
                     # 2. Gemini AI Marketing
                     if ICP.get_param('tec_catalog_enricher.use_gemini'):
                         if ai_engine.enrich_marketing(product):
                              state = 'marketing_done'
+                             provider = ICP.get_param('tec_catalog_enricher.ai_provider', 'gemini')
+                             if provider == 'openai':
+                                 model = ICP.get_param('tec_catalog_enricher.openai_model') or 'gpt-4.1-nano'
+                                 provider_name = 'OpenAI'
+                             else:
+                                 model = ICP.get_param('tec_catalog_enricher.gemini_model') or 'gemini-2.0-flash'
+                                 provider_name = 'Google Gemini'
+                             logs.append(f"✨ IA Marketing: Descripción generada exitosamente usando {provider_name} ({model}).")
                     
                     if state == 'marketing_done':
                         success_count += 1
@@ -171,6 +191,16 @@ class ProductTemplate(models.Model):
                         else:
                             product.enrichment_state = 'marketing_done'
                         product.enrichment_source = 'mixed'
+                        # Reset force
+                        product.force_enrichment = False
+
+                        # Log everything to chatter
+                        logs_html = "<br/>".join([f"✔️ {log}" for log in logs])
+                        body = f"✨ Marketing Generado Exitosamente<br/>{logs_html}"
+                        product.message_post(body=body)
+                    else:
+                        body = "⚠️ Generación de Marketing<br/>No se obtuvieron resultados o las integraciones están deshabilitadas."
+                        product.message_post(body=body)
 
                 # Individual commit for mass actions
                 if total > 1:

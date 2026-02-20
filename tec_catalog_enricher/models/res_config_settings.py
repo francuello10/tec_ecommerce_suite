@@ -198,8 +198,8 @@ Insumos: {inputs}"""
                 
                 params = {
                     'UserName': username,
-                    'brand': 'Dell',
-                    'part_code': '210-AXLQ',
+                    'brand': 'Lenovo',
+                    'part_code': '21SH0021AC',
                     'content_token': content_token,
                     'lang': 'es'
                 }
@@ -210,6 +210,8 @@ Insumos: {inputs}"""
                 res = requests.get(url, params=params, headers=headers, timeout=10)
                 if res.status_code == 200:
                     return self._notify_success("Icecat JSON: ¡Conexión Exitosa!")
+                elif res.status_code == 404:
+                    return self._notify_error("Icecat: Producto no encontrado (404). Tu configuración es CORRECTA, pero Lenovo 21SH0021AC no está en su DB.")
                 return self._notify_error(f"Icecat JSON Error {res.status_code}: {res.text[:100]}")
             else:
                 user = self.icecat_username or self.env['ir.config_parameter'].sudo().get_param('tec_catalog_enricher.icecat_username')
@@ -218,7 +220,7 @@ Insumos: {inputs}"""
                 import base64
                 auth = base64.b64encode(f"{user}:{pwd}".encode()).decode()
                 headers = {'Authorization': f'Basic {auth}'}
-                url = "https://data.icecat.biz/xml_s3/xml_server.cgi?rebrand=openicecat;prod_id=210-AXLQ;vendor=Dell;lang=es;output=productxml"
+                url = "https://data.icecat.biz/xml_s3/xml_server.cgi?rebrand=openicecat;prod_id=21SH0021AC;vendor=Lenovo;lang=es;output=productxml"
                 res = requests.get(url, headers=headers, timeout=10)
                 if res.status_code == 200:
                     return self._notify_success("Icecat Basic: ¡Conexión Exitosa!")
@@ -286,6 +288,7 @@ Insumos: {inputs}"""
             return self._notify_error(f"POD Error {res.status_code}: El servidor no respondió correctamente.")
         except Exception as e:
             return self._notify_error(f"POD Error: {str(e)}")
+
 
     def _notify_success(self, message):
         return {

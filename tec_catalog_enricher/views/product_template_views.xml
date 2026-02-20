@@ -10,7 +10,7 @@
                     <button name="action_fetch_technical_data" string="📥 Obtener Ficha Técnica" type="object" class="btn-primary" 
                         invisible="enrichment_state in ['full_enriched', 'tech_done'] and not force_enrichment"/>
                     <button name="action_generate_marketing_content" string="✨ Generar Marketing AI" type="object" class="btn-secondary"
-                         invisible="enrichment_state == 'draft'"/>
+                         invisible="enrichment_state == 'draft' or (enrichment_state in ['marketing_done', 'full_enriched'] and not force_enrichment)"/>
                 </header>
             </xpath>
             <xpath expr="//div[@name='button_box']" position="inside">

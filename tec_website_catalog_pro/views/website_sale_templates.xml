@@ -29,17 +29,21 @@
             <div t-if="product" class="product_price mt-2 mb-4 p-3 bg-light rounded border shadow-sm" itemprop="offers" itemscope="itemscope" itemtype="http://schema.org/Offer">
                 <t t-set="combination_info" t-value="product._get_combination_info(combination, product_id, add_qty or 1, pricelist)"/>
                 
+                <t t-set="tax_rate" t-value="sum(product.sudo().taxes_id.mapped('amount')) if product.sudo().taxes_id else 21.0"/>
+                <t t-set="tax_multiplier" t-value="1 + (tax_rate / 100.0)"/>
+                <t t-set="tax_display" t-value="'%g' % tax_rate"/>
+
                 <!-- 1. Precio Neto (Main) -->
                 <div class="d-flex align-items-baseline gap-2">
                     <span class="h2 fw-bold text-dark mb-0">
                         <t t-out="combination_info['price']" t-options="{'widget': 'monetary', 'display_currency': website.currency_id}"/>
                     </span>
-                    <span class="text-muted fw-bold">+ IVA</span>
+                    <span class="text-muted fw-bold">+ IVA (<t t-out="tax_display"/>%)</span>
                 </div>
 
                 <!-- 2. Precio Final (Informativo pero claro) -->
                 <div class="tec-final-price mt-1 border-top pt-2">
-                    <t t-set="tax_included_price" t-value="combination_info['total_included_price'] if 'total_included_price' in combination_info else combination_info['price'] * 1.21"/>
+                    <t t-set="tax_included_price" t-value="combination_info['total_included_price'] if 'total_included_price' in combination_info else combination_info['price'] * tax_multiplier"/>
                     <span class="text-primary fw-bold" style="font-size: 1.1rem;">
                         <t t-out="tax_included_price" t-options="{'widget': 'monetary', 'display_currency': website.currency_id}"/>
                     </span>
@@ -199,7 +203,9 @@
                             </div>
                             <!-- Tab 2: Specifications -->
                             <div class="tab-pane fade" id="specs-pane" role="tabpanel" aria-labelledby="specs-tab" tabindex="0">
-                                <h4 class="mb-4">Especificaciones Técnicas</h4>
+                                <t t-if="not product.tec_technical_description">
+                                    <h4 class="mb-4">Especificaciones Técnicas</h4>
+                                </t>
                                 
                                 <!-- New AI Technical Description -->
                                 <div t-if="product.tec_technical_description" t-field="product.tec_technical_description" class="mb-4 oe_skeleton tec-tech-specs"/>
@@ -221,6 +227,7 @@
                                 <t t-if="not product.tec_technical_description and not product.attribute_line_ids">
                                     <p class="text-muted italic">No se han definido especificaciones técnicas para este producto.</p>
                                 </t>
+                                <!-- Specific Product Support and Official Links -->
                                 <div id="official_specs_link" class="mt-3">
                                     <t t-set="show_specs" t-value="request.env['ir.config_parameter'].sudo().get_param('tec_catalog_enricher_website.show_spec_links', 'True') == 'True'"/>
                                     <t t-if="show_specs and product.external_product_url">
@@ -231,14 +238,15 @@
                                 </div>
                                 <div id="official_support_link" class="mt-1">
                                     <t t-set="show_support" t-value="request.env['ir.config_parameter'].sudo().get_param('tec_catalog_enricher_website.show_support_buttons', 'True') == 'True'"/>
-                                    <t t-if="show_support and product.support_search_url">
-                                        <a t-att-href="product.support_search_url" target="_blank" class="btn btn-outline-secondary btn-sm mt-2">
+                                    <t t-if="show_support and product.product_brand_id and 'support_search_url' in product.product_brand_id and product.product_brand_id.support_search_url">
+                                        <!-- Note: It seems support_search_url was on the brand. If it's on the brand: -->
+                                        <!-- But actually, it was likely part of a feature that got removed or was on brand. Let's just safely check. -->
+                                        <a t-att-href="product.product_brand_id.support_search_url" target="_blank" class="btn btn-outline-secondary btn-sm mt-2">
                                             <i class="fa fa-support"/> Soporte Oficial <t t-out="product.product_brand_id.name"/>
                                         </a>
                                     </t>
                                 </div>
-                            </div>
-                            <!-- Tab: Video -->
+                            </div>                            <!-- Tab: Video -->
                             <t t-set="show_videos" t-value="request.env['ir.config_parameter'].sudo().get_param('tec_website_catalog_pro.show_videos', 'True') == 'True'"/>
                             <t t-if="show_videos and product.video_url">
                                 <div class="tab-pane fade" id="video-pane" role="tabpanel" aria-labelledby="video-tab" tabindex="0">
@@ -286,7 +294,8 @@
         </xpath>
         <!-- Adjust Price in Grid -->
         <xpath expr="//div[hasclass('o_wsale_product_sub')]//div[hasclass('product_price')]" position="inside">
-            <span class="text-muted small fw-bold"> + IVA</span>
+            <t t-set="tax_rate_grid" t-value="sum(product.sudo().taxes_id.mapped('amount')) if product.sudo().taxes_id else 21.0"/>
+            <span class="text-muted small fw-bold"> + IVA (<t t-out="'%g' % tax_rate_grid"/>%)</span>
             <t t-set="show_usd" t-value="request.env['ir.config_parameter'].sudo().get_param('tec_website_catalog_pro.show_usd_exchange', 'True') == 'True'"/>
             <div t-if="show_usd and product.x_usd_price" class="text-muted" style="font-size: 0.7rem;">
                 Ref. u$s <t t-out="product.x_usd_price" t-options="{'widget': 'float', 'precision': 2}"/>

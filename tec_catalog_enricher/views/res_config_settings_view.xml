@@ -204,17 +204,6 @@
                                 </div>
                             </setting>
                         </div>
-                        <div class="col-12 col-lg-6">
-                            <setting string="MercadoLibre Sync" help="Mapeo Marketplace.">
-                                <div class="row align-items-center mb-1">
-                                    <label for="tec_meli_api_url" string="API URL" class="col-4 o_light_label"/>
-                                    <field name="tec_meli_api_url" class="col-8"/>
-                                </div>
-                                <div class="mt-2 d-flex align-items-center">
-                                    <field name="tec_meli_enable_ai_mapping" class="me-2"/><label for="tec_meli_enable_ai_mapping" class="mb-0"/>
-                                </div>
-                            </setting>
-                        </div>
                     </div>
                 </block>
             </xpath>

@@ -29,6 +29,8 @@ The "Brain" of the suite. Orchestrates Generative AI (Google Gemini) with transa
 The conversion layer. Turns Odoo's website builder into a **World-Class CMS**.
 - **SVG Branding**: Dynamic CDN injection (Simple Icons) for premium brand signatures.
 - **Stock Shielding**: Advanced availability logic to protect the transaction from real-time supplier stockouts.
+- **Dynamic Tax Engine**: Precision eCommerce rendering that automatically injects explicit IVA percentiles (e.g. 10.5% vs 21%) dynamically into both Grid and Product pages based on individual tax mapping.
+- **HD Native Galleries**: Fully integrated injection of AI-sourced HD imagery directly into Odoo's native website product gallery (`product.image`), bypassing limitations of third-party supplier thumbnails.
 
 ## 📐 Nerd Stats & Optimizations
 - **Transactional Atomicity**: Deep use of `env.cr.commit()` and `savepoints` ensures that even if an AI generation batch of 500 products fails at item 499, the previous 498 are safely persisted.
